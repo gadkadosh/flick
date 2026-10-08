@@ -37,7 +37,7 @@ struct WindowMoveBurstTests {
         #expect(burst.pendingCount == WindowMoveBurst.maximumPending)
     }
 
-    @Test func partialFailureDropsPendingRequestsButPreservesExactReturnRoute() {
+    @Test func partialFailureDropsPendingRequestsButPreservesExactRollbackRoute() {
         var burst = WindowMoveBurst()
         burst.begin()
         burst.recordCompleted(.next)
@@ -47,7 +47,7 @@ struct WindowMoveBurstTests {
         burst.close()
         #expect(burst.pendingCount == 0)
         #expect(burst.completed == [.next, .next, .previous])
-        #expect(burst.returnPath == [.next, .previous, .previous])
+        #expect(burst.rollbackPath == [.next, .previous, .previous])
     }
 
     @Test func newWindowBurstDoesNotInheritPreviousRequestsOrRoute() {
@@ -58,7 +58,7 @@ struct WindowMoveBurstTests {
         burst.close()
         burst.begin()
         #expect(burst.completed.isEmpty)
-        #expect(burst.returnPath.isEmpty)
+        #expect(burst.rollbackPath.isEmpty)
         #expect(burst.pendingCount == 0)
         #expect(burst.accepting)
     }

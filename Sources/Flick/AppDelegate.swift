@@ -16,10 +16,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var registrationError: String?
     private let defaults = UserDefaults.standard
 
-    private var follow: Bool {
-        get { defaults.object(forKey: "followMovedWindow") as? Bool ?? true }
-        set { defaults.set(newValue, forKey: "followMovedWindow") }
-    }
     private var preset: MoveShortcutPreset {
         get { MoveShortcutPreset(rawValue: defaults.string(forKey: "moveShortcutPreset") ?? "") ?? .optionShift }
         set { defaults.set(newValue.rawValue, forKey: "moveShortcutPreset") }
@@ -65,16 +61,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 statusItem.button?.toolTip = "Move queued for the same window (\(mover.pendingMoves) waiting)."
             } else {
                 NSSound.beep()
-                statusItem.button?.toolTip = "Cannot queue another move: the queue is full, the shortcut is unavailable, or the window is already being dropped/returned."
+                statusItem.button?.toolTip = "Cannot queue another move: the queue is full, the shortcut is unavailable, or the window is already being dropped or a failed move is being recovered."
             }
             return
         }
-        let shouldFollow = follow
         statusItem.button?.image = busyImage
         moveTask = Task { [weak self] in
             guard let self else { return }
             do {
-                lastResult = try await mover.move(direction, follow: shouldFollow)
+                lastResult = try await mover.move(direction)
             } catch is CancellationError {
                 lastResult = "Move cancelled."
             } catch {
@@ -97,10 +92,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         add("Previous Space: \(preset.label(for: .previous))", action: nil)
         add("Next Space: \(preset.label(for: .next))", action: nil)
         menu.addItem(.separator())
-        let toggle = add("Follow moved window", action: #selector(toggleFollow))
-        toggle.state = follow ? .on : .off
-        toggle.isEnabled = !mover.busy
-
         let shortcutMenu = NSMenu()
         shortcutMenu.autoenablesItems = false
         for (index, option) in MoveShortcutPreset.allCases.enumerated() {
@@ -147,7 +138,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return item
     }
 
-    @objc private func toggleFollow() { follow.toggle(); rebuildMenu() }
     @objc private func changePreset(_ item: NSMenuItem) {
         let old = preset
         preset = MoveShortcutPreset.allCases[item.tag]
@@ -195,7 +185,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert("System shortcut overlap", "macOS reserves this key combination too (symbolic hotkey IDs: \(ids)). macOS creates implicit Shift variants of Space-switching shortcuts. If Flick's shortcuts do not fire, choose a different preset in ‘Move shortcuts’. Flick does not edit your system shortcuts.")
     }
     @objc private func showAbout() {
-        alert("Flick — prototype", "Moves ordinary windows by holding their title bar while switching Spaces. Staying here switches back afterward.\n\nRequires Accessibility. No private APIs or SIP changes. Space navigation can be detected, but window membership cannot be verified through public APIs. Fullscreen, Stage Manager, and multi-monitor behavior are not yet validated.\n\nUse a disposable window for the first test; avoid using the mouse during a move. Bracket shortcuts use physical US-layout bracket keys.")
+        alert("Flick — prototype", "Moves ordinary windows by holding their title bar while switching Spaces. Flick always follows the moved window.\n\nRequires Accessibility. No private APIs or SIP changes. Space navigation can be detected, but window membership cannot be verified through public APIs. Fullscreen, Stage Manager, and multi-monitor behavior are not yet validated.\n\nUse a disposable window for the first test; avoid using the mouse during a move. Bracket shortcuts use physical US-layout bracket keys.")
     }
     private func alert(_ title: String, _ message: String) {
         NSApp.activate(ignoringOtherApps: true)

@@ -34,7 +34,7 @@ final class WindowMover {
         observer = nil
     }
 
-    func move(_ direction: Direction, follow: Bool) async throws -> String {
+    func move(_ direction: Direction) async throws -> String {
         guard !busy else { throw FlickError.message("A move is already in progress.") }
         busy = true
         lastPreparationMilliseconds = nil
@@ -54,9 +54,6 @@ final class WindowMover {
         burstShortcuts = Dictionary(uniqueKeysWithValues: Direction.allCases.compactMap { direction in
             SpaceShortcut.read(direction: direction, from: hotkeys).map { (direction, $0) }
         })
-        guard follow || burstShortcuts[direction.opposite] != nil else {
-            throw FlickError.message("Staying here requires both Mission Control space-switching shortcuts to be enabled.")
-        }
         guard let app = NSWorkspace.shared.frontmostApplication,
               app.processIdentifier != ProcessInfo.processInfo.processIdentifier else {
             throw FlickError.message("Focus a window in another app first.")
@@ -162,30 +159,32 @@ final class WindowMover {
         // public window metadata identifies it unambiguously, check visibility
         // after the drop. This is still not an exact Space-membership query.
         let visibleAtDestination = windowID.flatMap(isWindowVisible)
-        var returned = false
-        if (visibleAtDestination == false || !follow), !burst.completed.isEmpty {
-            for step in burst.returnPath {
+        // Successful moves always follow the window. Retrace only as error
+        // recovery if the window is missing after the drop, never as a UX mode.
+        var rolledBack = false
+        if visibleAtDestination == false, !burst.completed.isEmpty {
+            for step in burst.rollbackPath {
                 guard let reverse = burstShortcuts[step] else {
-                    throw FlickError.message("The window gesture finished, but no return shortcut is available.")
+                    throw FlickError.message("The window was not visible after the drop, and no shortcut is available to recover the starting Space.")
                 }
                 let beforeReturn = spaceChanges
                 let returnRequestedAt = ProcessInfo.processInfo.systemUptime
                 try send(reverse, source: source)
                 guard try await waitForSpaceChange(after: beforeReturn) else {
-                    throw FlickError.message("The window gesture finished, but returning to the original Space was not confirmed.")
+                    throw FlickError.message("The window was not visible after the drop, and recovering the starting Space was not confirmed.")
                 }
                 try await settleSwitch(requestedAt: returnRequestedAt)
             }
-            returned = true
+            rolledBack = true
         }
         if let navigationError {
-            throw FlickError.message("Move sequence stopped after \(burst.completed.count) confirmed Space switches. \(navigationError.localizedDescription)\(returned ? " Returned to the starting Space." : "") Remaining queued presses were discarded.")
+            throw FlickError.message("Move sequence stopped after \(burst.completed.count) confirmed Space switches. \(navigationError.localizedDescription)\(rolledBack ? " Recovered the starting Space." : "") Remaining queued presses were discarded.")
         }
         if visibleAtDestination == false {
-            throw FlickError.message("The Space switched, but the window was not visible after dropping it. macOS may have ignored the drag. \(returned ? "Flick switched back." : "No return shortcut was available.")")
+            throw FlickError.message("The Space switched, but the window was not visible after dropping it. macOS may have ignored the drag. \(rolledBack ? "Flick recovered the starting Space." : "The starting Space was not recovered.")")
         }
         let verification = visibleAtDestination == true ? "window visible after drop" : "window move not verified"
-        return "Move sequence finished: \(burst.completed.count) Space switch(es) (\(follow ? "follow" : "stay here")); \(verification)."
+        return "Move sequence finished: \(burst.completed.count) Space switch(es); \(verification)."
     }
 
     private func visibleWindowID(pid: pid_t, origin: CGPoint, size: CGSize) -> CGWindowID? {

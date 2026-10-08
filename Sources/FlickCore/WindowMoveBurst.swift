@@ -7,7 +7,8 @@ public struct WindowMoveBurst {
     public private(set) var accepting = false
     public private(set) var completed: [Direction] = []
     public var pendingCount: Int { pending.count }
-    public var returnPath: [Direction] { completed.reversed().map(\.opposite) }
+    /// Used only to recover a failed move, not to return after successful moves.
+    public var rollbackPath: [Direction] { completed.reversed().map(\.opposite) }
 
     public init() {}
 
@@ -33,7 +34,7 @@ public struct WindowMoveBurst {
     }
 
     /// Close before mouse-up, or on error/cancellation. Discard all unexecuted
-    /// requests but retain the confirmed route for the stay-here return trip.
+    /// requests but retain the confirmed route for failed-move recovery.
     public mutating func close() {
         accepting = false
         pending.removeAll()
