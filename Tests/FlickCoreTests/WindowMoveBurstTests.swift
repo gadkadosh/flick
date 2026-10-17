@@ -37,29 +37,32 @@ struct WindowMoveBurstTests {
         #expect(burst.pendingCount == WindowMoveBurst.maximumPending)
     }
 
-    @Test func partialFailureDropsPendingRequestsButPreservesExactRollbackRoute() {
+    @Test func closingDiscardsAllRemainingRequests() {
         var burst = WindowMoveBurst()
         burst.begin()
-        burst.recordCompleted(.next)
-        burst.recordCompleted(.next)
-        burst.recordCompleted(.previous)
         _ = burst.enqueue(.next)
+        _ = burst.enqueue(.previous)
         burst.close()
+        let next = burst.takeNext()
+        let acceptedAfterClose = burst.enqueue(.next)
         #expect(burst.pendingCount == 0)
-        #expect(burst.completed == [.next, .next, .previous])
-        #expect(burst.rollbackPath == [.next, .previous, .previous])
+        #expect(next == nil)
+        #expect(!acceptedAfterClose)
     }
 
-    @Test func newWindowBurstDoesNotInheritPreviousRequestsOrRoute() {
+    @Test func newWindowBurstDoesNotInheritPreviousRequests() {
         var burst = WindowMoveBurst()
         burst.begin()
-        burst.recordCompleted(.next)
         _ = burst.enqueue(.next)
         burst.close()
         burst.begin()
-        #expect(burst.completed.isEmpty)
-        #expect(burst.rollbackPath.isEmpty)
         #expect(burst.pendingCount == 0)
         #expect(burst.accepting)
+        let accepted = burst.enqueue(.previous)
+        let next = burst.takeNext()
+        let remaining = burst.takeNext()
+        #expect(accepted)
+        #expect(next == .previous)
+        #expect(remaining == nil)
     }
 }

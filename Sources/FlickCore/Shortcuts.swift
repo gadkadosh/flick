@@ -1,8 +1,9 @@
+import Carbon
+import CoreGraphics
 import Foundation
 
 public enum Direction: CaseIterable, Hashable {
     case previous, next
-    public var opposite: Direction { self == .previous ? .next : .previous }
     public var symbolicID: String { self == .previous ? "79" : "81" }
     public var label: String { self == .previous ? "previous" : "next" }
 }
@@ -15,6 +16,21 @@ public struct SpaceShortcut: Equatable {
     public init(keyCode: UInt16, flags: UInt64) {
         self.keyCode = keyCode
         self.flags = flags
+    }
+
+    /// Carbon registration uses different modifier bits from Quartz events.
+    /// Convert the modeled shortcut rather than redefining each preset.
+    public var carbonModifiers: UInt32 {
+        let quartz = CGEventFlags(rawValue: flags)
+        var carbon: UInt32 = 0
+        for (flag, modifier): (CGEventFlags, Int) in [
+            (.maskAlphaShift, alphaLock), (.maskShift, shiftKey),
+            (.maskControl, controlKey), (.maskAlternate, optionKey),
+            (.maskCommand, cmdKey)
+        ] where quartz.contains(flag) {
+            carbon |= UInt32(modifier)
+        }
+        return carbon
     }
 
     public static func read(direction: Direction, from hotkeys: [String: Any]) -> SpaceShortcut? {

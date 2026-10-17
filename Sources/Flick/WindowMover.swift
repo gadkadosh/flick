@@ -9,7 +9,6 @@ final class WindowMover {
     private var observer: NSObjectProtocol?
     private var spaceChanges = 0
     private(set) var busy = false
-    private(set) var lastPreparationMilliseconds: Int?
     private var burst = WindowMoveBurst()
     private var burstShortcuts: [Direction: SpaceShortcut] = [:]
     var pendingMoves: Int { burst.pendingCount }
@@ -37,8 +36,6 @@ final class WindowMover {
     func move(_ direction: Direction) async throws -> String {
         guard !busy else { throw FlickError.message("A move is already in progress.") }
         busy = true
-        lastPreparationMilliseconds = nil
-        let startedAt = ProcessInfo.processInfo.systemUptime
         defer {
             burst.close()
             burstShortcuts.removeAll()
@@ -122,7 +119,7 @@ final class WindowMover {
         drag.post(tap: .cghidEventTap)
         try await pause(MoveTiming.dragToSwitch)
         var nextDirection: Direction? = direction
-        var navigationError: Error?
+        var completedSwitches = 0
         do {
             while let step = nextDirection {
                 guard let shortcut = burstShortcuts[step] else {
@@ -130,14 +127,11 @@ final class WindowMover {
                 }
                 let before = spaceChanges
                 let switchRequestedAt = ProcessInfo.processInfo.systemUptime
-                if lastPreparationMilliseconds == nil {
-                    lastPreparationMilliseconds = Int((switchRequestedAt - startedAt) * 1_000)
-                }
                 try send(shortcut, source: source)
                 guard try await waitForSpaceChange(after: before) else {
                     throw FlickError.message("The last Space switch was not confirmed. You may be at the desktop boundary, or macOS may have ignored the gesture.")
                 }
-                burst.recordCompleted(step)
+                completedSwitches += 1
                 try await settleSwitch(requestedAt: switchRequestedAt)
                 drag.post(tap: .cghidEventTap)
                 // Keep the same window held for another queued step: no second
@@ -147,7 +141,7 @@ final class WindowMover {
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            navigationError = error
+            throw FlickError.message("Move sequence stopped after \(completedSwitches) confirmed Space switches. \(error.localizedDescription) Remaining queued presses were discarded.")
         }
         burst.close() // No request can race mouse-up and target another window.
         drag.post(tap: .cghidEventTap)
@@ -159,32 +153,15 @@ final class WindowMover {
         // public window metadata identifies it unambiguously, check visibility
         // after the drop. This is still not an exact Space-membership query.
         let visibleAtDestination = windowID.flatMap(isWindowVisible)
-        // Successful moves always follow the window. Retrace only as error
-        // recovery if the window is missing after the drop, never as a UX mode.
-        var rolledBack = false
-        if visibleAtDestination == false, !burst.completed.isEmpty {
-            for step in burst.rollbackPath {
-                guard let reverse = burstShortcuts[step] else {
-                    throw FlickError.message("The window was not visible after the drop, and no shortcut is available to recover the starting Space.")
-                }
-                let beforeReturn = spaceChanges
-                let returnRequestedAt = ProcessInfo.processInfo.systemUptime
-                try send(reverse, source: source)
-                guard try await waitForSpaceChange(after: beforeReturn) else {
-                    throw FlickError.message("The window was not visible after the drop, and recovering the starting Space was not confirmed.")
-                }
-                try await settleSwitch(requestedAt: returnRequestedAt)
-            }
-            rolledBack = true
+        // Visibility is feedback only: uncertain evidence must never trigger
+        // more desktop navigation.
+        let verification: String
+        switch visibleAtDestination {
+        case true: verification = "window visible after drop"
+        case false: verification = "warning: window not visible after drop; move not verified"
+        case nil: verification = "window move not verified"
         }
-        if let navigationError {
-            throw FlickError.message("Move sequence stopped after \(burst.completed.count) confirmed Space switches. \(navigationError.localizedDescription)\(rolledBack ? " Recovered the starting Space." : "") Remaining queued presses were discarded.")
-        }
-        if visibleAtDestination == false {
-            throw FlickError.message("The Space switched, but the window was not visible after dropping it. macOS may have ignored the drag. \(rolledBack ? "Flick recovered the starting Space." : "The starting Space was not recovered.")")
-        }
-        let verification = visibleAtDestination == true ? "window visible after drop" : "window move not verified"
-        return "Move sequence finished: \(burst.completed.count) Space switch(es); \(verification)."
+        return "Move sequence finished: \(completedSwitches) Space switch(es); \(verification)."
     }
 
     private func visibleWindowID(pid: pid_t, origin: CGPoint, size: CGSize) -> CGWindowID? {

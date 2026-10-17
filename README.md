@@ -1,69 +1,74 @@
 # Flick
 
-A small, local macOS menu-bar prototype for moving the focused window to an adjacent desktop Space.
+A small macOS menu-bar app that moves the focused window to an adjacent desktop Space and follows it.
 
 - **⌥⇧[**: previous Space
 - **⌥⇧]**: next Space
-- Always follows the moved window; staying on the original Space is not currently supported
-- Rapid presses queued for the same held window (up to eight waiting steps)
+- Rapid presses queue moves for the same window, with up to eight waiting steps
 - Alternative shortcut presets and optional launch at login
-- Reads your actual Mission Control switching shortcuts, including your **⌥[ / ⌥]** settings
-- No external dependencies, private APIs, screen capture, or SIP changes
+- Uses your configured Mission Control switching shortcuts
+- No external dependencies, private APIs, screen capture, SIP changes, telemetry, or network access
 
-## Build and run
+**Experimental:** Flick simulates a title-bar drag while switching Spaces. It cannot prove exact window Space membership through public APIs. It is intended for ordinary desktop windows; see the limitations below.
+
+## Build and install
+
+Requires macOS 13+ and Swift 6 / Xcode 16+.
 
 ```sh
 ./scripts/build-app.sh
 open build/Flick.app
 ```
 
-Swift 6 / Xcode 16+ is required. The scripts prefer `/Applications/Xcode.app` when available, without changing `xcode-select`. You can override `DEVELOPER_DIR`. The build script produces an ad-hoc-signed local app at `build/Flick.app`; this is not a notarized distribution build.
-
-In Flick's menu, choose **Grant Accessibility…**, and enable **Flick** under **System Settings → Privacy & Security → Accessibility**. If needed, use the `+` button to add `build/Flick.app`. Keep the app in a stable location. Rebuilding an ad-hoc-signed app may require removing and re-adding its Accessibility entry. For stable signing across rebuilds, set `FLICK_SIGN_IDENTITY` to an installed signing identity.
+The script produces an ad-hoc-signed local app, not a notarized distribution build. It prefers `/Applications/Xcode.app` when available without changing `xcode-select`; you can override `DEVELOPER_DIR`.
 
 To install, quit Flick and copy it to `/Applications` (or `~/Applications`) **before** granting permission or enabling launch at login. Launch the installed copy, not both copies.
 
-Both **Move left a space** and **Move right a space** should be enabled in **Keyboard → Keyboard Shortcuts → Mission Control**. Flick does not edit those settings.
+1. In Flick's menu, choose **Grant Accessibility…** and enable Flick under **System Settings → Privacy & Security → Accessibility**. If needed, use `+` to add the app.
+2. Enable both **Move left a space** and **Move right a space** under **Keyboard → Keyboard Shortcuts → Mission Control**. Flick reads these settings but does not change them.
+3. Focus an ordinary window in another app, then press a Flick shortcut. Avoid using the mouse or switching apps during the move.
 
-### Shortcut overlap
+Keep the app in a stable location. Rebuilding an ad-hoc-signed app may require removing and re-adding its Accessibility entry. For stable signing across rebuilds, set `FLICK_SIGN_IDENTITY` to an installed signing identity.
 
-macOS also reserves implicit Shift variants of the Space-switching shortcuts. On this machine, symbolic shortcut IDs **80/82** overlap **⌥⇧[ / ⌥⇧]**. Carbon registration succeeds, but that does not prove macOS will route the keystrokes to Flick. The menu warns about overlaps. If the default does not fire, try **⌃⌥[ / ⌃⌥]** or **⌃⌥⇧[ / ⌃⌥⇧]** under **Move shortcuts**. A preset identical to the actual left/right switching shortcuts is rejected.
+### Shortcut conflicts
 
-Bracket shortcuts use physical US-layout bracket key positions; arbitrary shortcut recording and layout-aware key selection are not implemented yet.
+macOS may also reserve Flick's default shortcuts, including implicit Shift variants of Mission Control shortcuts. Successful registration does not guarantee macOS will route the keys to Flick. The menu warns about known overlaps.
 
-## How the prototype works
+If the default does not fire, choose **⌃⌥[ / ⌃⌥]** or **⌃⌥⇧[ / ⌃⌥⇧]** under **Move shortcuts**. A preset identical to an actual Space-switching shortcut is rejected.
 
-1. Find the frontmost app's focused, ordinary window through Accessibility.
-2. Locate a visible title-bar drag point; hit-test to avoid tabs and controls.
-3. Check that no mouse button is held (modifier keys may stay held), press and drag the title bar slightly, and synthesize your configured Space-switching shortcut with its own exact modifier flags. The pre-switch event delays total 40 ms, down from 250 ms.
-4. Wait for a Space-change notification and animation. If another press was queued, switch again while holding the **same window**, without another window lookup/drop/drag setup. Otherwise release the mouse. Time spent waiting for each notification counts toward that switch's 650 ms settling budget.
-5. Best-effort check that the same window is visible after the drop, using public WindowServer metadata. This does **not** establish exact Space membership, especially with multiple displays.
-6. Stay on the destination Space with the moved window. Restore the cursor and the window's small drag displacement. The old follow preference is no longer read.
+Bracket shortcuts use physical US-layout bracket key positions. Arbitrary shortcut recording and layout-aware key selection are not supported. Repeated key-down events are ignored until the bracket key is released; modifiers can stay held between presses.
 
-Rapid presses are accepted only while the captured window is held. During the brief drop/verification or failed-move recovery, further presses are rejected, rather than replayed against a different window. A failed switch/boundary cancels all remaining queued requests. If the window is not visible after the drop, Flick attempts to retrace the confirmed route as error recovery only; successful moves never switch back automatically. Cancellation/quit releases the mouse and discards the queue. Animations are still serialized; queueing removes the need to time key presses, not the native animation itself.
+## Behavior and limitations
 
-Mouse-up cleanup runs on errors and cancellation. Quit during a move waits for cleanup. Physical input is not blocked: avoid moving the mouse or switching apps during the gesture. Force-quitting/crashing the process cannot guarantee cleanup.
+Flick finds the focused window through Accessibility, locates a safe title-bar drag point, holds the window, and sends your configured Mission Control shortcut. It waits for a Space-change notification and animation before continuing. Queued steps keep the same window held rather than looking up a new focused window.
 
-**This backend is experimental.** A successful build or a detected Space change does not prove the window was moved. If window identity cannot be matched unambiguously, the last result explicitly says the move was not verified. The single-step version, including held modifiers and shorter delays, was reported working on the user's macOS 27 desktop. The queued multi-step drag still needs manual validation; unit tests do not replace that.
+After releasing the window, Flick restores the cursor and the small drag displacement. A best-effort visibility check supplies feedback under **Last result…** and in the menu-bar tooltip:
 
-Fullscreen/Split View windows and dialogs are rejected. Borderless/custom-title-bar windows can be rejected if no safe drag point is found. Fullscreen destinations, Stage Manager, multiple displays, pinned/all-desktop windows, and unusual animation settings are not supported/validated. At a desktop boundary, a missing Space-change notification produces an error rather than wrapping or creating a Space.
+- **Window visible after drop:** the captured window appears in the on-screen window list. This is not proof of exact Space membership.
+- **Window not visible after drop:** a warning that the move could not be verified.
+- **Window move not verified:** the window could not be identified unambiguously.
 
-Failures beep and are available under **Last result…** and in the menu-bar icon's tooltip. The result also reports milliseconds from move preparation to requesting the Space switch, to help distinguish Accessibility lookup delays from the native animation. Repeated hotkey-pressed events are ignored until that bracket key is released; you can keep the modifiers held between presses. No background telemetry or network access.
+The visibility check never triggers further desktop navigation. Flick does not automatically navigate back, even when a move fails or cannot be verified. Navigation failures beep and discard queued steps.
 
-## First manual test
+Requests are accepted only while the original window is held, not during drop or verification. A missing Space-change notification stops the sequence; at a desktop boundary Flick does not wrap or create a Space.
 
-Use a disposable, non-fullscreen **TextEdit** window and at least two adjacent ordinary desktop Spaces, initially on one display with Stage Manager off.
+Fullscreen/Split View windows and dialogs are rejected. Borderless/custom-title-bar windows may be rejected if no safe drag point is found. Fullscreen destinations, Stage Manager, multiple displays, pinned/all-desktop windows, and unusual animation settings are not supported/validated.
 
-1. Enable Accessibility and focus TextEdit (not Flick's settings alert).
-2. Press **⌥⇧]**; try both releasing all keys and keeping Option/Shift held. Do not use the mouse during the move.
-3. Check that **both the Space and the window** moved. If nothing happens, try the alternative preset. If it beeps, inspect **Last result…**.
-4. Move back with **⌥⇧[** (or the selected preset).
-5. With **three adjacent ordinary Spaces**, refocus TextEdit and tap **⌥⇧] twice quickly**, keeping the modifiers held. Confirm the same window travels two Spaces and you remain with it. Also test queued opposite directions.
-6. Test the desktop boundary, a fullscreen window (should reject), and your usual apps. A burst that reaches a boundary must discard remaining steps, not move another window.
+Mouse-up cleanup runs on errors and cancellation, and quitting waits for cleanup. Physical input is not blocked. Force-quitting or crashing the process cannot guarantee cleanup.
 
-If the title-bar/switch technique fails on your OS, the next step is to replace this isolated `WindowMover` backend with a Mission Control drag implementation or a separately opt-in private-API backend—not to weaken system security.
+### Manual validation
 
-## Validation and diagnostics
+Start with a disposable, non-fullscreen TextEdit window, one display, Stage Manager off, and at least two adjacent ordinary desktop Spaces.
+
+1. Move right and back left. Check that **both the Space and the window** moved.
+2. Repeat while keeping the shortcut modifiers held.
+3. With three adjacent Spaces, tap right twice quickly. Confirm the same window travels two Spaces. Also test queued opposite directions.
+4. Test the desktop boundary: remaining queued steps should be discarded without navigating back.
+5. Test a fullscreen window (should reject), your usual apps, and quitting during a move (should release the mouse).
+
+A successful build or a detected Space change does not replace these checks.
+
+## Development
 
 ```sh
 ./scripts/test.sh
@@ -72,6 +77,19 @@ build/Flick.app/Contents/MacOS/Flick --diagnose
 build/Flick.app/Contents/MacOS/Flick --smoke-test
 ```
 
-The unit tests cover shortcut parsing, disabled/malformed settings, presets, implicit system conflicts, synthetic event flags/source configuration (without posting input), hotkey repeat handling, animation-delay accounting, FIFO burst ordering, bounded queue capacity, queue cancellation, and partial-route rollback planning for failed moves. `--diagnose` reads settings/permission status and briefly registers/unregisters hotkeys; it does not post input or move windows. `--smoke-test` briefly starts the menu-bar app with move callbacks disabled and exits. Permission reported from a terminal-run binary may differ from the app launched through Finder/LaunchServices. Quit any running Flick instance before these checks so its registrations do not interfere.
+The unit tests cover shortcut parsing and conflicts, preset modifier conversion, synthetic event construction, hotkey repeat handling, animation-delay accounting, and queue ordering/capacity/closure. They do not execute the window-moving operation or prove its cleanup behavior.
 
-Sources: `Sources/Flick/` (app and automation), `Sources/FlickCore/` (shortcut models), `Tests/FlickCoreTests/` (unit tests), `Resources/Info.plist` (bundle metadata).
+`--diagnose` reads settings/permission status and briefly registers/unregisters hotkeys without posting input. `--smoke-test` briefly starts the menu-bar app with move callbacks disabled and exits. Quit any running Flick instance before either check so its registrations do not interfere. Accessibility permission reported from a terminal-run binary may differ from the app launched through Finder/LaunchServices.
+
+### Code map
+
+The main path is **hotkey → app delegate → window mover → synthetic input**.
+
+- [`FlickMain.swift`](Sources/Flick/FlickMain.swift): starts the app or runs diagnostics.
+- [`AppDelegate.swift`](Sources/Flick/AppDelegate.swift): owns the menu, preferences, hotkeys, and asynchronous move task.
+- [`HotKeys.swift`](Sources/Flick/HotKeys.swift): registers global shortcuts and reports distinct presses.
+- [`WindowMover.swift`](Sources/Flick/WindowMover.swift): captures a window, performs the gesture, and cleans up.
+- [`SystemShortcuts.swift`](Sources/Flick/SystemShortcuts.swift): reads macOS shortcut settings. [`FlickError.swift`](Sources/Flick/FlickError.swift) supplies errors shown to the user.
+- [`Sources/FlickCore/`](Sources/FlickCore/): shortcut models, input-event construction, timing, repeat tracking, and the bounded move queue. Shared with the unit tests; still macOS-specific.
+- [`Tests/FlickCoreTests/`](Tests/FlickCoreTests/): tests that do not post input or move windows.
+- [`Resources/Info.plist`](Resources/Info.plist) and [`scripts/`](scripts/): app bundle metadata, local packaging, and test commands.

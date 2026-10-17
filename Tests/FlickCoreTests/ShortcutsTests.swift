@@ -1,3 +1,5 @@
+import Carbon
+import CoreGraphics
 import Foundation
 import Testing
 @testable import FlickCore
@@ -36,15 +38,34 @@ struct ShortcutsTests {
         #expect(systemConflicts(for: .optionShift, in: ["80": entry(enabled: false, flags: 0xA0000)]).isEmpty)
     }
 
-    @Test func presetsAndDirections() {
-        #expect(Direction.previous.opposite == .next)
-        #expect(Direction.next.opposite == .previous)
-        for preset in MoveShortcutPreset.allCases {
-            #expect(preset.shortcut(for: .previous).keyCode == 33)
-            #expect(preset.shortcut(for: .next).keyCode == 30)
-            #expect(preset.quartzFlags != 0x80000)
+    @Test func presetsUseMatchingEventAndRegistrationModifiers() {
+        let expected: [(MoveShortcutPreset, UInt64, UInt32, String)] = [
+            (.optionShift, 0xA0000, UInt32(optionKey | shiftKey), "⌥⇧"),
+            (.controlOption, 0xC0000, UInt32(controlKey | optionKey), "⌃⌥"),
+            (.controlOptionShift, 0xE0000, UInt32(controlKey | optionKey | shiftKey), "⌃⌥⇧")
+        ]
+        #expect(expected.count == MoveShortcutPreset.allCases.count)
+        for (preset, flags, modifiers, label) in expected {
+            for direction in Direction.allCases {
+                let shortcut = preset.shortcut(for: direction)
+                #expect(shortcut.keyCode == (direction == .previous ? 33 : 30))
+                #expect(shortcut.flags == flags)
+                #expect(shortcut.carbonModifiers == modifiers)
+                #expect(preset.label(for: direction) == label + (direction == .previous ? "[" : "]"))
+            }
         }
-        #expect(MoveShortcutPreset.optionShift.label(for: .next) == "⌥⇧]")
-        #expect(MoveShortcutPreset.controlOption.quartzFlags == 0xC0000)
+    }
+
+    @Test func eachQuartzModifierConvertsToItsCarbonEquivalent() {
+        let expected: [(CGEventFlags, Int)] = [
+            (.maskAlphaShift, alphaLock), (.maskShift, shiftKey),
+            (.maskControl, controlKey), (.maskAlternate, optionKey),
+            (.maskCommand, cmdKey)
+        ]
+        #expect(SpaceShortcut(keyCode: 33, flags: 0).carbonModifiers == 0)
+        for (flag, modifier) in expected {
+            let shortcut = SpaceShortcut(keyCode: 33, flags: flag.rawValue)
+            #expect(shortcut.carbonModifiers == UInt32(modifier))
+        }
     }
 }

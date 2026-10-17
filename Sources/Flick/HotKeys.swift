@@ -39,13 +39,10 @@ final class HotKeys {
         guard handler != nil else {
             throw FlickError.message("Could not install the macOS hotkey event handler.")
         }
-        var modifiers: UInt32 = UInt32(optionKey)
-        if preset != .controlOption { modifiers |= UInt32(shiftKey) }
-        if preset != .optionShift { modifiers |= UInt32(controlKey) }
         for (index, direction) in Direction.allCases.enumerated() {
             var ref: EventHotKeyRef?
             let shortcut = preset.shortcut(for: direction)
-            let status = RegisterEventHotKey(UInt32(shortcut.keyCode), modifiers,
+            let status = RegisterEventHotKey(UInt32(shortcut.keyCode), shortcut.carbonModifiers,
                                             EventHotKeyID(signature: 0x464C494B, id: UInt32(index + 1)),
                                             GetApplicationEventTarget(), 0, &ref)
             guard status == noErr, let ref else {
@@ -67,17 +64,4 @@ final class HotKeys {
         if let handler { RemoveEventHandler(handler) }
         handler = nil
     }
-}
-
-struct FlickError: LocalizedError {
-    let message: String
-    static func message(_ text: String) -> FlickError { FlickError(message: text) }
-    var errorDescription: String? { message }
-}
-
-func symbolicHotkeys() -> [String: Any] {
-    // Reload at every move: changing System Settings must not require restarting Flick.
-    CFPreferencesAppSynchronize("com.apple.symbolichotkeys" as CFString)
-    return CFPreferencesCopyAppValue("AppleSymbolicHotKeys" as CFString,
-                                    "com.apple.symbolichotkeys" as CFString) as? [String: Any] ?? [:]
 }
