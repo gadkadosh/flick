@@ -157,8 +157,8 @@ final class WindowMover {
         // more desktop navigation.
         let verification: String
         switch visibleAtDestination {
-        case true: verification = "window visible after drop"
-        case false: verification = "warning: window not visible after drop; move not verified"
+        case .some(true): verification = "window visible after drop"
+        case .some(false): verification = "warning: window not visible after drop; move not verified"
         case nil: verification = "window move not verified"
         }
         return "Move sequence finished: \(completedSwitches) Space switch(es); \(verification)."
