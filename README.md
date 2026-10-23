@@ -15,12 +15,16 @@ A small macOS menu-bar app that moves the focused window to an adjacent desktop 
 
 Requires macOS 13+ and Swift 6 / Xcode 16+.
 
+Flick is currently distributed as source. Clone or download this repository, then run these commands from its directory:
+
 ```sh
 ./scripts/build-app.sh
 open build/Flick.app
 ```
 
 The script produces an ad-hoc-signed local app, not a notarized distribution build. It prefers `/Applications/Xcode.app` when available without changing `xcode-select`; you can override `DEVELOPER_DIR`.
+
+The app is built for your Mac's architecture; the script does not produce a universal binary.
 
 To install, quit Flick and copy it to `/Applications` (or `~/Applications`) **before** granting permission or enabling launch at login. Launch the installed copy, not both copies.
 
@@ -79,6 +83,8 @@ build/Flick.app/Contents/MacOS/Flick --smoke-test
 
 The unit tests cover shortcut parsing and conflicts, preset modifier conversion, synthetic event construction, hotkey repeat handling, animation-delay accounting, and queue ordering/capacity/closure. They do not execute the window-moving operation or prove its cleanup behavior.
 
+GitHub Actions runs the unit tests and builds and verifies the ad-hoc-signed app bundle on macOS 15 with Xcode 16.4 for pushes and pull requests. Window moves still need the manual validation above.
+
 `--diagnose` reads settings/permission status and briefly registers/unregisters hotkeys without posting input. `--smoke-test` briefly starts the menu-bar app with move callbacks disabled and exits. Quit any running Flick instance before either check so its registrations do not interfere. Accessibility permission reported from a terminal-run binary may differ from the app launched through Finder/LaunchServices.
 
 ### Code map
@@ -93,3 +99,11 @@ The main path is **hotkey → app delegate → window mover → synthetic input*
 - [`Sources/FlickCore/`](Sources/FlickCore/): shortcut models, input-event construction, timing, repeat tracking, and the bounded move queue. Shared with the unit tests; still macOS-specific.
 - [`Tests/FlickCoreTests/`](Tests/FlickCoreTests/): tests that do not post input or move windows.
 - [`Resources/Info.plist`](Resources/Info.plist) and [`scripts/`](scripts/): app bundle metadata, local packaging, and test commands.
+
+## Contributing
+
+Issues and small, focused pull requests are welcome. For move failures, include your macOS version, affected app, display/Space setup, shortcut preset, and Flick's **Last result…** message. Run the development checks above before submitting code; changes to moving windows also need the manual validation steps.
+
+## License
+
+[MIT](LICENSE) © 2026 Gad Kadosh.
