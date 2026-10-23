@@ -1,6 +1,5 @@
-/// One burst belongs to a single captured window. The mover consumes requests
-/// while that window is still held; nothing is replayed against a newly focused
-/// window after it has been dropped.
+/// One burst belongs to a single captured window. Requests are never replayed
+/// against whichever unrelated window becomes focused during a move.
 public struct WindowMoveBurst {
     public static let maximumPending = 8
     private var pending: [Direction] = []
@@ -25,8 +24,7 @@ public struct WindowMoveBurst {
         return pending.removeFirst()
     }
 
-    /// Close before mouse-up, or on error/cancellation, discarding all
-    /// unexecuted requests.
+    /// Close when the sequence finishes or fails, discarding unexecuted requests.
     public mutating func close() {
         accepting = false
         pending.removeAll()

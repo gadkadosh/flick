@@ -1,6 +1,7 @@
 import AppKit
 import ApplicationServices
 import FlickCore
+import SkyLightBridge
 
 @main
 struct FlickMain {
@@ -10,6 +11,7 @@ struct FlickMain {
             print("Flick diagnostics (no windows or system settings are changed)")
             print("macOS: \(ProcessInfo.processInfo.operatingSystemVersionString)")
             print("Accessibility: \(AXIsProcessTrusted() ? "allowed" : "not granted")")
+            print("Direct Space operations: \(FlickSkyLightAvailable() ? "available (runtime symbols found; no move attempted)" : "unavailable")")
             let settings = symbolicHotkeys()
             for direction in Direction.allCases {
                 if let shortcut = SpaceShortcut.read(direction: direction, from: settings) {
