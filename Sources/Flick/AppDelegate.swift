@@ -61,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 statusItem.button?.toolTip = "Move queued for the same window (\(mover.pendingMoves) waiting)."
             } else {
                 NSSound.beep()
-                statusItem.button?.toolTip = "Cannot queue another move: the queue is full, the shortcut is unavailable, or the window is already being dropped."
+                statusItem.button?.toolTip = "Cannot queue another move: the queue is full or the move sequence has finished."
             }
             return
         }
@@ -182,7 +182,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         alert("System shortcut overlap", "macOS reserves this key combination too (symbolic hotkey IDs: \(ids)). macOS creates implicit Shift variants of Space-switching shortcuts. If Flick's shortcuts do not fire, choose a different preset in ‘Move shortcuts’. Flick does not edit your system shortcuts.")
     }
     @objc private func showAbout() {
-        alert("Flick", "Moves ordinary windows by holding their title bar while switching Spaces. Flick always follows the moved window.\n\nRequires Accessibility. No private APIs or SIP changes. Space navigation can be detected, but window membership cannot be verified through public APIs. Fullscreen, Stage Manager, and multi-monitor behavior are not yet validated.\n\nUse a disposable window for the first test; avoid using the mouse during a move. Bracket shortcuts use physical US-layout bracket keys.")
+        alert("Flick", "Moves ordinary windows directly to an adjacent desktop Space and follows without a slide animation. The cursor, window size, and position are left alone.\n\nRequires Accessibility and compatible undocumented macOS Space APIs. SIP stays enabled. macOS updates may break compatibility; Flick reports unconfirmed moves instead of falling back to dragging. Fullscreen, Stage Manager, and multi-monitor behavior are not yet validated.\n\nBracket shortcuts use physical US-layout bracket keys.")
     }
     private func alert(_ title: String, _ message: String) {
         NSApp.activate(ignoringOtherApps: true)
@@ -198,7 +198,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let moveTask else { return .terminateNow }
         moveTask.cancel()
         Task {
-            await moveTask.value // Run mouse-up cleanup before allowing termination.
+            await moveTask.value // Finish the current move-and-follow before exiting.
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
@@ -206,7 +206,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         hotkeys.stop()
-        mover.stop()
     }
 }
 

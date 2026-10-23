@@ -1,36 +1,46 @@
 import AppKit
 import ApplicationServices
 import FlickCore
+import SkyLightBridge
 
-/// Experimental public-API backend: drag a title bar while invoking the user's
-/// actual Mission Control shortcut. No private WindowServer calls or SIP changes.
+/// The sole adapter for undocumented Space operations. Success means dispatch;
+/// SpaceMove reads back membership and the active desktop before reporting it.
 @MainActor
-final class WindowMover {
-    private var observer: NSObjectProtocol?
-    private var spaceChanges = 0
-    private(set) var busy = false
-    private var burst = WindowMoveBurst()
-    private var burstShortcuts: [Direction: SpaceShortcut] = [:]
-    var pendingMoves: Int { burst.pendingCount }
-
-    /// Accept only while the original window is held. Never replay a shortcut
-    /// against whichever unrelated window becomes focused after a drop.
-    func enqueue(_ direction: Direction) -> Bool {
-        guard busy, burstShortcuts[direction] != nil else { return false }
-        return burst.enqueue(direction)
+private struct SkyLight: SpaceBackend {
+    func displays() throws -> [SpaceDisplay] {
+        guard let raw = FlickCopyDisplays() as? [[String: Any]] else { throw SpaceMoveError.invalidLayout }
+        return try SpaceDisplay.read(raw)
     }
 
-    init() {
-        observer = NSWorkspace.shared.notificationCenter.addObserver(
-            forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main
-        ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.spaceChanges += 1 }
+    func spaces(for windowID: UInt32) throws -> [UInt64] {
+        guard let raw = FlickCopyWindowSpaces(windowID) as? [NSNumber] else {
+            throw FlickError.message("Could not read the window's Space membership.")
+        }
+        return raw.map(\.uint64Value)
+    }
+
+    func move(windowID: UInt32, to spaceID: UInt64) throws {
+        guard FlickMoveWindow(windowID, spaceID) else {
+            throw FlickError.message("macOS rejected the direct window move.")
         }
     }
 
-    func stop() {
-        if let observer { NSWorkspace.shared.notificationCenter.removeObserver(observer) }
-        observer = nil
+    func activate(spaceID: UInt64, on displayID: String) throws {
+        guard FlickActivateSpace(displayID as CFString, spaceID) else {
+            throw FlickError.message("The window moved, but macOS rejected following it.")
+        }
+    }
+}
+
+@MainActor
+final class WindowMover {
+    private(set) var busy = false
+    private var burst = WindowMoveBurst()
+    var pendingMoves: Int { burst.pendingCount }
+
+    func enqueue(_ direction: Direction) -> Bool {
+        guard busy else { return false }
+        return burst.enqueue(direction)
     }
 
     func move(_ direction: Direction) async throws -> String {
@@ -38,19 +48,14 @@ final class WindowMover {
         busy = true
         defer {
             burst.close()
-            burstShortcuts.removeAll()
             busy = false
         }
         guard AXIsProcessTrusted() else {
             throw FlickError.message("Enable Flick in System Settings → Privacy & Security → Accessibility, then try again.")
         }
-        let hotkeys = symbolicHotkeys()
-        guard SpaceShortcut.read(direction: direction, from: hotkeys) != nil else {
-            throw FlickError.message("Enable ‘Move \(direction.label) a space’ in System Settings → Keyboard → Keyboard Shortcuts → Mission Control.")
+        guard FlickSkyLightAvailable() else {
+            throw FlickError.message("Direct Space moves are unavailable on this macOS version. Flick requires compatible SkyLight operations and does not fall back to dragging.")
         }
-        burstShortcuts = Dictionary(uniqueKeysWithValues: Direction.allCases.compactMap { direction in
-            SpaceShortcut.read(direction: direction, from: hotkeys).map { (direction, $0) }
-        })
         guard let app = NSWorkspace.shared.frontmostApplication,
               app.processIdentifier != ProcessInfo.processInfo.processIdentifier else {
             throw FlickError.message("Focus a window in another app first.")
@@ -67,200 +72,43 @@ final class WindowMover {
               (attribute(window, kAXMinimizedAttribute) as? Bool) != true else {
             throw FlickError.message("Only ordinary desktop windows are supported, not fullscreen windows or dialogs.")
         }
-        guard let origin = point(window), let size = windowSize(window),
-              let titlePoint = draggablePoint(window, origin: origin, size: size) else {
-            throw FlickError.message("Could not find a safe, visible title-bar drag point. Try a different window; borderless windows are not supported.")
+        let windowID = FlickWindowID(window)
+        guard windowID != 0 else { throw FlickError.message("Could not identify the focused window.") }
+        guard NSEvent.pressedMouseButtons == 0 else {
+            throw FlickError.message("Release the mouse buttons before moving a window. Modifier keys can stay held.")
         }
-        let windowID = visibleWindowID(pid: app.processIdentifier, origin: origin, size: size)
-        var movable = DarwinBoolean(false)
-        guard AXUIElementIsAttributeSettable(window, kAXPositionAttribute as CFString, &movable) == .success,
-              movable.boolValue else {
-            throw FlickError.message("This window does not support repositioning through Accessibility.")
-        }
-        guard let source = SyntheticInput.makeSource(),
-              let cursor = CGEvent(source: nil)?.location else {
-            throw FlickError.message("Could not create input events.")
-        }
-
-        // Modifiers may stay held. Synthetic events carry their own exact flags.
-        // Never interfere with an existing user mouse drag.
-        try requireReleasedMouseButtons()
-        guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
-              let stillFocused = attribute(application, kAXFocusedWindowAttribute),
-              CFEqual(stillFocused, window) else {
-            throw FlickError.message("Focus changed before the move started; try again.")
-        }
-        let draggedPoint = CGPoint(x: titlePoint.x + 6, y: titlePoint.y)
-        // Allocate mouse events before pressing; the release must already be available.
-        guard let down = SyntheticInput.mouse(.leftMouseDown, at: titlePoint, source: source),
-              let drag = SyntheticInput.mouse(.leftMouseDragged, at: draggedPoint, source: source),
-              let up = SyntheticInput.mouse(.leftMouseUp, at: draggedPoint, source: source) else {
-            throw FlickError.message("Could not create mouse events.")
-        }
-        var held = false
-        var started = false
-        defer {
-            if held { up.post(tap: .cghidEventTap) }
-            if started {
-                // Undo the tiny drag displacement without resizing the window.
-                var oldPosition = origin
-                if let value = AXValueCreate(.cgPoint, &oldPosition) {
-                    AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, value)
-                }
-                // Reposition the cursor explicitly without generating another input event.
-                _ = CGWarpMouseCursorPosition(cursor)
-            }
-        }
-        burst.begin()
-        down.post(tap: .cghidEventTap)
-        held = true
-        started = true
-        try await pause(MoveTiming.pressToDrag)
-        drag.post(tap: .cghidEventTap)
-        try await pause(MoveTiming.dragToSwitch)
+        let mover = SpaceMove(backend: SkyLight())
         var nextDirection: Direction? = direction
-        var completedSwitches = 0
+        var completedMoves = 0
+        burst.begin()
         do {
             while let step = nextDirection {
-                guard let shortcut = burstShortcuts[step] else {
-                    throw FlickError.message("The requested Space-switching shortcut is unavailable.")
+                try Task.checkCancellation()
+                guard NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
+                      let focused = attribute(application, kAXFocusedWindowAttribute), CFEqual(focused, window) else {
+                    throw FlickError.message("Focus changed; remaining queued moves were discarded.")
                 }
-                let before = spaceChanges
-                let switchRequestedAt = ProcessInfo.processInfo.systemUptime
-                try send(shortcut, source: source)
-                guard try await waitForSpaceChange(after: before) else {
-                    throw FlickError.message("The last Space switch was not confirmed. You may be at the desktop boundary, or macOS may have ignored the gesture.")
+                try await mover.move(windowID: windowID, direction: step)
+                completedMoves += 1
+                // Raise only after this window and its display have reached the
+                // destination, avoiding activation's normal cross-Space slide.
+                app.activate(options: [])
+                guard AXUIElementPerformAction(window, kAXRaiseAction as CFString) == .success else {
+                    throw FlickError.message("The window moved and the desktop switched, but macOS could not refocus it.")
                 }
-                completedSwitches += 1
-                try await settleSwitch(requestedAt: switchRequestedAt)
-                drag.post(tap: .cghidEventTap)
-                // Keep the same window held for another queued step: no second
-                // title-bar lookup, drop, focus change, or mouse-down delay.
                 nextDirection = burst.takeNext()
             }
         } catch is CancellationError {
             throw CancellationError()
         } catch {
-            throw FlickError.message("Move sequence stopped after \(completedSwitches) confirmed Space switches. \(error.localizedDescription) Remaining queued presses were discarded.")
+            throw FlickError.message("Move sequence stopped after \(completedMoves) completed step(s). \(error.localizedDescription)")
         }
-        burst.close() // No request can race mouse-up and target another window.
-        drag.post(tap: .cghidEventTap)
-        up.post(tap: .cghidEventTap)
-        held = false
-        try await pause(MoveTiming.dropToVerify)
-
-        // A navigation notification alone does not prove the window moved. When
-        // public window metadata identifies it unambiguously, check visibility
-        // after the drop. This is still not an exact Space-membership query.
-        let visibleAtDestination = windowID.flatMap(isWindowVisible)
-        // Visibility is feedback only: uncertain evidence must never trigger
-        // more desktop navigation.
-        let verification: String
-        switch visibleAtDestination {
-        case .some(true): verification = "window visible after drop"
-        case .some(false): verification = "warning: window not visible after drop; move not verified"
-        case nil: verification = "window move not verified"
-        }
-        return "Move sequence finished: \(completedSwitches) Space switch(es); \(verification)."
-    }
-
-    private func visibleWindowID(pid: pid_t, origin: CGPoint, size: CGSize) -> CGWindowID? {
-        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
-        let matches = windows.filter { info in
-            guard (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid,
-                  (info[kCGWindowLayer as String] as? NSNumber)?.intValue == 0,
-                  let bounds = info[kCGWindowBounds as String] as? [String: Any],
-                  let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary) else { return false }
-            return abs(rect.minX - origin.x) < 2 && abs(rect.minY - origin.y) < 2
-                && abs(rect.width - size.width) < 2 && abs(rect.height - size.height) < 2
-        }
-        guard matches.count == 1 else { return nil }
-        return (matches[0][kCGWindowNumber as String] as? NSNumber)?.uint32Value
-    }
-
-    private func isWindowVisible(_ id: CGWindowID) -> Bool? {
-        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return nil }
-        return windows.contains { ($0[kCGWindowNumber as String] as? NSNumber)?.uint32Value == id }
-    }
-
-    private func requireReleasedMouseButtons() throws {
-        let buttons = CGEventSource.buttonState(.combinedSessionState, button: .left)
-            || CGEventSource.buttonState(.combinedSessionState, button: .right)
-            || CGEventSource.buttonState(.combinedSessionState, button: .center)
-        guard !buttons else {
-            throw FlickError.message("Release the mouse buttons before moving a window. Modifier keys can stay held.")
-        }
-    }
-
-    private func settleSwitch(requestedAt: Double) async throws {
-        let remaining = MoveTiming.remainingSwitchDelay(requestedAt: requestedAt, now: ProcessInfo.processInfo.systemUptime)
-        if remaining > 0 { try await pause(remaining) }
-    }
-
-    private func waitForSpaceChange(after count: Int) async throws -> Bool {
-        for _ in 0..<40 {
-            if spaceChanges > count { return true }
-            try await pause(0.05)
-        }
-        return spaceChanges > count
-    }
-
-    private func pause(_ seconds: Double) async throws {
-        try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-    }
-
-    private func send(_ shortcut: SpaceShortcut, source: CGEventSource) throws {
-        guard let events = SyntheticInput.keyStroke(shortcut, source: source) else {
-            throw FlickError.message("Could not create keyboard events.")
-        }
-        events.down.post(tap: .cghidEventTap)
-        events.up.post(tap: .cghidEventTap)
+        return "Moved and followed the same window across \(completedMoves) Space(s); destination membership confirmed."
     }
 
     private func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, name as CFString, &value) == .success else { return nil }
         return value
-    }
-
-    private func point(_ element: AXUIElement) -> CGPoint? {
-        guard let raw = attribute(element, kAXPositionAttribute), CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
-        var point = CGPoint.zero
-        return AXValueGetValue(raw as! AXValue, .cgPoint, &point) ? point : nil
-    }
-
-    private func windowSize(_ element: AXUIElement) -> CGSize? {
-        guard let raw = attribute(element, kAXSizeAttribute), CFGetTypeID(raw) == AXValueGetTypeID() else { return nil }
-        var size = CGSize.zero
-        return AXValueGetValue(raw as! AXValue, .cgSize, &size) ? size : nil
-    }
-
-    private func draggablePoint(_ window: AXUIElement, origin: CGPoint, size: CGSize) -> CGPoint? {
-        guard size.width > 200, size.height > 80 else { return nil }
-        var candidates: [(CGPoint, Bool)] = []
-        if let title = attribute(window, kAXTitleUIElementAttribute), CFGetTypeID(title) == AXUIElementGetTypeID() {
-            let element = title as! AXUIElement
-            if let p = point(element), let s = windowSize(element), s.width > 0, s.height > 0 {
-                let center = CGPoint(x: p.x + s.width / 2, y: p.y + s.height / 2)
-                if center.y >= origin.y && center.y < origin.y + 32 {
-                    candidates.append((center, true))
-                }
-            }
-        }
-        // Hit-test empty title-bar areas; never click a tab, toolbar button, or control.
-        candidates += [0.5, 0.35, 0.75].map {
-            (CGPoint(x: origin.x + size.width * $0, y: origin.y + 12), false)
-        }
-        let system = AXUIElementCreateSystemWide()
-        for (candidate, isTitle) in candidates {
-            var hit: AXUIElement?
-            guard AXUIElementCopyElementAtPosition(system, Float(candidate.x), Float(candidate.y), &hit) == .success,
-                  let hit else { continue }
-            let role = attribute(hit, kAXRoleAttribute) as? String
-            let hitWindow = role == kAXWindowRole ? hit : attribute(hit, kAXWindowAttribute)
-            guard let hitWindow, CFEqual(hitWindow, window) else { continue }
-            if role == kAXWindowRole || (isTitle && role == kAXStaticTextRole) { return candidate }
-        }
-        return nil
     }
 }

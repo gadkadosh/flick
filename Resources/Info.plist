@@ -12,6 +12,6 @@
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
-    <key>NSAccessibilityUsageDescription</key><string>Flick needs Accessibility to find the focused window and drag it between desktop Spaces.</string>
+    <key>NSAccessibilityUsageDescription</key><string>Flick needs Accessibility to identify and focus the window moved between desktop Spaces.</string>
 </dict>
 </plist>
