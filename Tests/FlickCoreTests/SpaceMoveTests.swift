@@ -31,10 +31,12 @@ struct SpaceMoveTests {
     @Test func silentMoveFailureNeverSwitchesDesktops() async {
         let backend = FakeSpaceBackend()
         backend.applyMove = false
-        let mover = SpaceMove(backend: backend, pause: {})
+        let mover = SpaceMove(backend: backend)
+        let started = ContinuousClock.now
         await #expect(throws: SpaceMoveError.moveNotConfirmed(2)) {
             try await mover.move(windowID: 77, direction: .next)
         }
+        #expect(started.duration(to: .now) >= .seconds(1))
         #expect(backend.events == [.move(77, 2)])
         #expect(backend.currentSpace == 1)
     }
@@ -42,10 +44,12 @@ struct SpaceMoveTests {
     @Test func silentFollowFailureIsReportedWithoutExtraNavigation() async {
         let backend = FakeSpaceBackend()
         backend.applyFollow = false
-        let mover = SpaceMove(backend: backend, pause: {})
+        let mover = SpaceMove(backend: backend)
+        let started = ContinuousClock.now
         await #expect(throws: SpaceMoveError.followNotConfirmed(2)) {
             try await mover.move(windowID: 77, direction: .next)
         }
+        #expect(started.duration(to: .now) >= .seconds(1))
         #expect(backend.events == [.move(77, 2), .follow(2, "display")])
         #expect(backend.membership == [2])
         #expect(backend.currentSpace == 1)

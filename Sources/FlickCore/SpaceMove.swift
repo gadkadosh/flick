@@ -19,7 +19,7 @@ public struct SpaceMove {
         self.backend = backend
         self.pause = pause ?? {
             await withCheckedContinuation { continuation in
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) { continuation.resume() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.002) { continuation.resume() }
             }
         }
     }
@@ -47,10 +47,11 @@ public struct SpaceMove {
     /// Once requested, finish the bounded move-and-follow transaction even if
     /// quitting cancels the task. Cancellation stops the next queued step.
     private func waitUntil(_ condition: () throws -> Bool) async throws -> Bool {
-        for attempt in 0..<50 {
+        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
+        while true {
             if try condition() { return true }
-            if attempt < 49 { await pause() }
+            guard ContinuousClock.now < deadline else { return false }
+            await pause()
         }
-        return false
     }
 }
