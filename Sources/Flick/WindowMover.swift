@@ -91,11 +91,10 @@ final class WindowMover {
             throw FlickError.message("Focus changed before the move started; try again.")
         }
         let draggedPoint = CGPoint(x: titlePoint.x + 6, y: titlePoint.y)
-        // Allocate all mouse events before pressing; cleanup must always be possible.
+        // Allocate mouse events before pressing; the release must already be available.
         guard let down = SyntheticInput.mouse(.leftMouseDown, at: titlePoint, source: source),
               let drag = SyntheticInput.mouse(.leftMouseDragged, at: draggedPoint, source: source),
-              let up = SyntheticInput.mouse(.leftMouseUp, at: draggedPoint, source: source),
-              let restoreCursor = SyntheticInput.mouse(.mouseMoved, at: cursor, source: source) else {
+              let up = SyntheticInput.mouse(.leftMouseUp, at: draggedPoint, source: source) else {
             throw FlickError.message("Could not create mouse events.")
         }
         var held = false
@@ -108,7 +107,8 @@ final class WindowMover {
                 if let value = AXValueCreate(.cgPoint, &oldPosition) {
                     AXUIElementSetAttributeValue(window, kAXPositionAttribute as CFString, value)
                 }
-                restoreCursor.post(tap: .cghidEventTap)
+                // Reposition the cursor explicitly without generating another input event.
+                _ = CGWarpMouseCursorPosition(cursor)
             }
         }
         burst.begin()
