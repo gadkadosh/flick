@@ -14,6 +14,14 @@ struct FlickMain {
             print(
                 "Direct Space operations: \(FlickSkyLightAvailable() ? "available (runtime symbols found; no move attempted)" : "unavailable")"
             )
+            do {
+                let backend = SkyLight()
+                let displayID = try backend.activeDisplayID()
+                let displays = try backend.displays()
+                print(
+                    "Active display: \(displayID) (layout match: \(displays.contains { $0.id == displayID }))"
+                )
+            } catch { print(error.localizedDescription) }
             let settings = symbolicHotkeys()
             for direction in Direction.allCases {
                 if let shortcut = SpaceShortcut.read(direction: direction, from: settings) {
@@ -23,6 +31,19 @@ struct FlickMain {
                 } else {
                     print("Switch \(direction.label): disabled or unsupported")
                 }
+            }
+            let switchKeys = HotKeys(signature: 0x464C_5357)
+            do {
+                try switchKeys.registerSpaceSwitches()
+                print("Switch ⌃← / ⌃→: registration OK")
+            } catch { print(error.localizedDescription) }
+            switchKeys.stop()
+            let switchConflicts = systemConflicts(
+                for: Direction.allCases.map { SpaceShortcut.switchShortcut(for: $0) },
+                in: settings
+            )
+            if !switchConflicts.isEmpty {
+                print("  Switch system overlaps: \(switchConflicts.joined(separator: ", "))")
             }
             for preset in MoveShortcutPreset.allCases {
                 let keys = HotKeys()

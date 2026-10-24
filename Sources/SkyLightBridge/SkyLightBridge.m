@@ -17,6 +17,7 @@
 
 static int (*mainConnection)(void);
 static CFArrayRef (*copyDisplays)(int);
+static CFStringRef (*copyActiveDisplay)(int);
 static CFArrayRef (*copyWindowSpaces)(int, int, CFArrayRef);
 static AXError (*getWindowID)(AXUIElementRef, CGWindowID *);
 static Class moveClass;
@@ -31,6 +32,7 @@ bool FlickSkyLightAvailable(void) {
             return;
         mainConnection = dlsym(library, "SLSMainConnectionID");
         copyDisplays = dlsym(library, "SLSCopyManagedDisplaySpaces");
+        copyActiveDisplay = dlsym(library, "SLSCopyActiveMenuBarDisplayIdentifier");
         copyWindowSpaces = dlsym(library, "SLSCopySpacesForWindows");
         getWindowID = dlsym(RTLD_DEFAULT, "_AXUIElementGetWindow");
         moveClass = NSClassFromString(@"SLSBridgedMoveWindowsToManagedSpaceOperation");
@@ -46,6 +48,12 @@ bool FlickSkyLightAvailable(void) {
 
 CFArrayRef FlickCopyDisplays(void) {
     return FlickSkyLightAvailable() ? copyDisplays(mainConnection()) : NULL;
+}
+
+CFStringRef FlickCopyActiveDisplay(void) {
+    if (!FlickSkyLightAvailable() || !copyActiveDisplay)
+        return NULL;
+    return copyActiveDisplay(mainConnection());
 }
 
 CFArrayRef FlickCopyWindowSpaces(CGWindowID window) {

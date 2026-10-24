@@ -86,6 +86,41 @@ struct ShortcutsTests {
         }
     }
 
+    @Test func standaloneSwitchesUseControlArrowsAndDetectSystemConflicts() {
+        let previous = SpaceShortcut.switchShortcut(for: .previous)
+        let next = SpaceShortcut.switchShortcut(for: .next)
+        #expect(previous.keyCode == 123)
+        #expect(next.keyCode == 124)
+        #expect(previous.carbonModifiers == UInt32(controlKey))
+        #expect(next.carbonModifiers == UInt32(controlKey))
+        let settings = [
+            "79": entry(code: 123, flags: 0x40000),
+            "81": entry(code: 124, flags: 0x40000),
+            "82": entry(code: 124, flags: 0x60000),
+        ]
+        #expect(systemConflicts(for: [previous, next], in: settings) == ["79", "81"])
+        #expect(
+            systemConflicts(
+                for: [previous, next],
+                in: ["79": entry(enabled: false, code: 123, flags: 0x40000)]
+            ).isEmpty
+        )
+        #expect(systemConflicts(for: .optionShift, in: settings).isEmpty)
+    }
+
+    @Test func missingSystemOverridesStillReserveDefaultControlArrows() {
+        let switches = Direction.allCases.map { SpaceShortcut.switchShortcut(for: $0) }
+        let defaults = resolvingDefaultSpaceShortcuts(in: [:])
+        #expect(systemConflicts(for: switches, in: defaults) == ["79", "81"])
+        #expect(SpaceShortcut.read(direction: .previous, from: defaults) == switches[0])
+        let disabled = resolvingDefaultSpaceShortcuts(in: [
+            "79": ["enabled": false], "81": ["enabled": false],
+        ])
+        #expect(systemConflicts(for: switches, in: disabled).isEmpty)
+        let reassigned = resolvingDefaultSpaceShortcuts(in: ["79": entry(), "81": entry(code: 30)])
+        #expect(systemConflicts(for: switches, in: reassigned).isEmpty)
+    }
+
     @Test func eachQuartzModifierConvertsToItsCarbonEquivalent() {
         let expected: [(CGEventFlags, Int)] = [
             (.maskAlphaShift, alphaLock), (.maskShift, shiftKey),

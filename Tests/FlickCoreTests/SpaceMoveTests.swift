@@ -78,6 +78,17 @@ struct SpaceMoveTests {
         #expect(backend.currentSpace == 1)
     }
 
+    @Test func rejectedFollowReportsThatTheWindowAlreadyMoved() async {
+        let backend = FakeSpaceBackend()
+        backend.rejectFollow = true
+        await #expect(throws: SpaceMoveError.followRejected) {
+            try await SpaceMove(backend: backend).move(windowID: 77, direction: .next)
+        }
+        #expect(backend.membership == [2])
+        #expect(backend.currentSpace == 1)
+        #expect(backend.events == [.move(77, 2), .follow(2, "display")])
+    }
+
     @Test func cancellationBeforeDispatchLeavesTheDesktopAlone() async {
         let backend = FakeSpaceBackend()
         let task = Task { @MainActor in
@@ -124,6 +135,7 @@ private final class FakeSpaceBackend: SpaceBackend {
     var currentSpace: UInt64 = 1
     var applyMove = true
     var applyFollow = true
+    var rejectFollow = false
     var moveError: Failure?
 
     func displays() -> [SpaceDisplay] {
@@ -144,8 +156,9 @@ private final class FakeSpaceBackend: SpaceBackend {
         if applyMove { membership = [spaceID] }
     }
 
-    func activate(spaceID: UInt64, on displayID: String) {
+    func activate(spaceID: UInt64, on displayID: String) throws {
         events.append(.follow(spaceID, displayID))
+        if rejectFollow { throw Failure.rejected }
         if applyFollow { currentSpace = spaceID }
     }
 }

@@ -33,6 +33,10 @@ public struct SpaceShortcut: Equatable {
         return carbon
     }
 
+    public static func switchShortcut(for direction: Direction) -> SpaceShortcut {
+        SpaceShortcut(keyCode: direction == .previous ? 123 : 124, flags: 0x40000)
+    }
+
     public static func read(direction: Direction, from hotkeys: [String: Any]) -> SpaceShortcut? {
         guard let entry = hotkeys[direction.symbolicID] as? [String: Any],
             (entry["enabled"] as? NSNumber)?.boolValue == true,
@@ -78,10 +82,33 @@ public enum MoveShortcutPreset: String, CaseIterable {
     }
 }
 
+/// macOS preferences store overrides, not necessarily every built-in shortcut.
+/// Missing Space-switch entries retain their enabled Control-arrow defaults.
+public func resolvingDefaultSpaceShortcuts(in hotkeys: [String: Any]) -> [String: Any] {
+    var resolved = hotkeys
+    for (id, code, flags): (String, Int, UInt64) in [
+        ("79", 123, 0x40000), ("80", 123, 0x60000),
+        ("81", 124, 0x40000), ("82", 124, 0x60000),
+    ] {
+        var entry: [String: Any] = [
+            "enabled": true,
+            "value": ["parameters": [65535, code, NSNumber(value: flags)], "type": "standard"],
+        ]
+        if let configured = hotkeys[id] as? [String: Any] {
+            entry.merge(configured) { _, configured in configured }
+        }
+        resolved[id] = entry
+    }
+    return resolved
+}
+
 /// Detect an exact conflict with a system shortcut (including macOS's implicit
 /// Shift variants, IDs 80/82). Never silently change the user's system settings.
 public func systemConflicts(for preset: MoveShortcutPreset, in hotkeys: [String: Any]) -> [String] {
-    let shortcuts = Direction.allCases.map { preset.shortcut(for: $0) }
+    systemConflicts(for: Direction.allCases.map { preset.shortcut(for: $0) }, in: hotkeys)
+}
+
+public func systemConflicts(for shortcuts: [SpaceShortcut], in hotkeys: [String: Any]) -> [String] {
     return hotkeys.compactMap { id, raw in
         guard let entry = raw as? [String: Any],
             (entry["enabled"] as? NSNumber)?.boolValue == true,

@@ -65,12 +65,19 @@ public struct SpaceRoute: Equatable {
 
     public init(displays: [SpaceDisplay], windowSpaces: [UInt64], direction: Direction) throws {
         guard windowSpaces.count == 1, let source = windowSpaces.first,
-            let display = displays.first(where: { $0.spaces.contains(where: { $0.id == source }) }),
-            let index = display.spaces.firstIndex(where: { $0.id == source })
+            let display = displays.first(where: { $0.spaces.contains(where: { $0.id == source }) })
         else {
             throw SpaceMoveError.unsupportedWindowSpaces
         }
         guard display.currentSpaceID == source else { throw SpaceMoveError.windowNotOnCurrentSpace }
+        try self.init(display: display, direction: direction)
+    }
+
+    public init(display: SpaceDisplay, direction: Direction) throws {
+        guard let index = display.spaces.firstIndex(where: { $0.id == display.currentSpaceID })
+        else {
+            throw SpaceMoveError.invalidLayout
+        }
         guard display.spaces[index].isDesktop else { throw SpaceMoveError.unsupportedSpace }
         let next = index + (direction == .next ? 1 : -1)
         guard display.spaces.indices.contains(next) else {
@@ -78,7 +85,7 @@ public struct SpaceRoute: Equatable {
         }
         guard display.spaces[next].isDesktop else { throw SpaceMoveError.unsupportedSpace }
         displayID = display.id
-        sourceID = source
+        sourceID = display.currentSpaceID
         destinationID = display.spaces[next].id
     }
 }
@@ -91,6 +98,8 @@ public enum SpaceMoveError: Error, Equatable, LocalizedError {
     case boundary(Direction)
     case moveNotConfirmed(UInt64)
     case followNotConfirmed(UInt64)
+    case followRejected
+    case switchNotConfirmed(UInt64)
 
     public var errorDescription: String? {
         switch self {
@@ -111,6 +120,12 @@ public enum SpaceMoveError: Error, Equatable, LocalizedError {
         case .followNotConfirmed:
             return
                 "The window moved, but following it could not be confirmed. Remaining queued moves were discarded."
+        case .followRejected:
+            return
+                "The window moved, but macOS rejected following it. Remaining queued moves were discarded."
+        case .switchNotConfirmed:
+            return
+                "The desktop switch could not be confirmed. Remaining queued switches were discarded."
         }
     }
 }
