@@ -8,7 +8,7 @@ let package = Package(
     targets: [
         .target(name: "FlickCore"),
         .executableTarget(name: "Flick", dependencies: ["FlickCore"]),
-        .testTarget(name: "FlickCoreTests", dependencies: ["FlickCore"])
+        .testTarget(name: "FlickCoreTests", dependencies: ["FlickCore"]),
     ],
     swiftLanguageModes: [.v5]
 )

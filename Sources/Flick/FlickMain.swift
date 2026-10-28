@@ -13,7 +13,9 @@ struct FlickMain {
             let settings = symbolicHotkeys()
             for direction in Direction.allCases {
                 if let shortcut = SpaceShortcut.read(direction: direction, from: settings) {
-                    print("Switch \(direction.label): keyCode=\(shortcut.keyCode), flags=0x\(String(shortcut.flags, radix: 16))")
+                    print(
+                        "Switch \(direction.label): keyCode=\(shortcut.keyCode), flags=0x\(String(shortcut.flags, radix: 16))"
+                    )
                 } else {
                     print("Switch \(direction.label): disabled or unsupported")
                 }
@@ -26,7 +28,9 @@ struct FlickMain {
                 } catch { print(error.localizedDescription) }
                 keys.stop()
                 let conflicts = systemConflicts(for: preset, in: settings)
-                if !conflicts.isEmpty { print("  System overlaps: \(conflicts.joined(separator: ", "))") }
+                if !conflicts.isEmpty {
+                    print("  System overlaps: \(conflicts.joined(separator: ", "))")
+                }
             }
         } else {
             let app = NSApplication.shared
