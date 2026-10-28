@@ -74,15 +74,6 @@ A successful build or a detected Space change does not replace these checks.
 
 ## Development
 
-Format Swift with the toolchain's bundled `swift format`. The same commands use bundled `clang-format` for Objective-C bridge files under `Sources/SkyLightBridge` when present:
-
-```sh
-make format
-make format-check
-```
-
-Use Xcode 26.3 for formatting to match CI; formatter output can differ between toolchain versions. Select it with `DEVELOPER_DIR` when multiple versions are installed.
-
 ```sh
 ./scripts/test.sh
 ./scripts/build-app.sh
@@ -91,8 +82,6 @@ build/Flick.app/Contents/MacOS/Flick --smoke-test
 ```
 
 The unit tests cover shortcut parsing and conflicts, preset modifier conversion, synthetic event construction, hotkey repeat handling, animation-delay accounting, and queue ordering/capacity/closure. They do not execute the window-moving operation or prove its cleanup behavior.
-
-GitHub Actions checks formatting, runs the unit tests, and builds and verifies the ad-hoc-signed app bundle on macOS 15 with Xcode 26.3 for pushes and pull requests. Window moves still need the manual validation above.
 
 `--diagnose` reads settings/permission status and briefly registers/unregisters hotkeys without posting input. `--smoke-test` briefly starts the menu-bar app with move callbacks disabled and exits. Quit any running Flick instance before either check so its registrations do not interfere. Accessibility permission reported from a terminal-run binary may differ from the app launched through Finder/LaunchServices.
 
