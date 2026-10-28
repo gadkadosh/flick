@@ -12,11 +12,18 @@ jobs:
     runs-on: macos-15
     timeout-minutes: 10
     env:
-      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: Show toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+          xcrun clang-format --version
+      - name: Check formatting
+        run: make format-check
       - name: Run unit tests
         run: ./scripts/test.sh
       - name: Build and verify the app bundle

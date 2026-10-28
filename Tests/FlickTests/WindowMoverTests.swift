@@ -1,6 +1,7 @@
 import AppKit
 import FlickCore
 import Testing
+
 @testable import Flick
 
 @MainActor
@@ -11,8 +12,8 @@ struct WindowMoverTests {
             guard harness.events.count == 1 else { return }
             #expect(harness.mover.enqueue(.previous))
             harness.focused = false
-            harness.send(.keyDown, code: 48, flags: .maskCommand) // Command-Tab.
-            harness.focused = true // Returning focus must not erase the interruption.
+            harness.send(.keyDown, code: 48, flags: .maskCommand)  // Command-Tab.
+            harness.focused = true  // Returning focus must not erase the interruption.
             #expect(!harness.mover.enqueue(.next))
             await Task.yield()
         }
@@ -42,12 +43,16 @@ struct WindowMoverTests {
         let harness = MoveHarness()
         harness.onStep = {
             if harness.events.count == 1 {
-                harness.send(.keyDown, code: 33, flags: [.maskAlternate, .maskShift, .maskAlphaShift])
+                harness.send(
+                    .keyDown,
+                    code: 33,
+                    flags: [.maskAlternate, .maskShift, .maskAlphaShift]
+                )
                 harness.send(.flagsChanged)
                 harness.send(.mouseMoved)
                 #expect(harness.mover.enqueue(.previous))
             }
-            harness.focused = false // macOS can change focus during a normal transition.
+            harness.focused = false  // macOS can change focus during a normal transition.
             await Task.yield()
         }
         let result = try await harness.run()
@@ -128,7 +133,7 @@ struct WindowMoverTests {
             while harness.interruptions == 0 && ContinuousClock.now < deadline {
                 try await Task.sleep(for: .milliseconds(2))
             }
-            #expect(harness.interruptions == 1) // The real watcher must notice during the await.
+            #expect(harness.interruptions == 1)  // The real watcher must notice during the await.
             harness.secureInput = false
             #expect(!harness.mover.enqueue(.previous))
         }
@@ -141,7 +146,13 @@ struct WindowMoverTests {
 
     @Test func missingInputObservationFailsBeforeDispatchAndReleasesBusyState() async {
         let mover = WindowMover(
-            capture: { .init(windowID: 77, isFocused: { true }, refocus: { Issue.record("Must not refocus") }) },
+            capture: {
+                .init(
+                    windowID: 77,
+                    isFocused: { true },
+                    refocus: { Issue.record("Must not refocus") }
+                )
+            },
             moveStep: { _, _ in Issue.record("Must not move without input observation") },
             observeInput: { _, _ in throw FlickError.message("Observation unavailable.") }
         )
@@ -153,7 +164,10 @@ struct WindowMoverTests {
 
 @MainActor
 private final class MoveHarness {
-    enum Event: Equatable { case move(Direction), refocus }
+    enum Event: Equatable {
+        case move(Direction)
+        case refocus
+    }
     var mover: WindowMover!
     var events: [Event] = []
     var focused = true
@@ -168,10 +182,14 @@ private final class MoveHarness {
     init() {
         mover = WindowMover(
             capture: { [unowned self] in
-                .init(windowID: 77, isFocused: { self.focused }, refocus: {
-                    self.events.append(.refocus)
-                    self.focused = true
-                })
+                .init(
+                    windowID: 77,
+                    isFocused: { self.focused },
+                    refocus: {
+                        self.events.append(.refocus)
+                        self.focused = true
+                    }
+                )
             },
             moveStep: { [unowned self] windowID, direction in
                 #expect(windowID == 77)

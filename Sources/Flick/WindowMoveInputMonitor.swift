@@ -17,7 +17,8 @@ final class WindowMoveInputMonitor {
     private var securityTimer: Timer?
 
     init(
-        shortcuts: [SpaceShortcut], interrupt: @escaping @MainActor () -> Void,
+        shortcuts: [SpaceShortcut],
+        interrupt: @escaping @MainActor () -> Void,
         isSecureInputEnabled: @escaping @MainActor () -> Bool = { IsSecureEventInputEnabled() },
         startTap: StartTap = WindowMoveInputMonitor.installTap
     ) throws {
@@ -41,7 +42,9 @@ final class WindowMoveInputMonitor {
             interrupt()
         }
         guard !keyboardUnavailable else {
-            throw FlickError.message("Secure Keyboard Entry prevents safe keyboard observation. Try again after secure entry ends; remaining queued moves were discarded.")
+            throw FlickError.message(
+                "Secure Keyboard Entry prevents safe keyboard observation. Try again after secure entry ends; remaining queued moves were discarded."
+            )
         }
     }
 
@@ -59,19 +62,26 @@ final class WindowMoveInputMonitor {
     private static func installTap(_ monitor: WindowMoveInputMonitor) throws -> StopTap {
         let types: [CGEventType] = [.keyDown, .leftMouseDown, .rightMouseDown, .otherMouseDown]
         let mask = types.reduce(CGEventMask(0)) { $0 | (CGEventMask(1) << $1.rawValue) }
-        guard let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap, place: .headInsertEventTap, options: .listenOnly,
-            eventsOfInterest: mask,
-            callback: { _, type, event, context in
-                if let context {
-                    let monitor = Unmanaged<WindowMoveInputMonitor>.fromOpaque(context).takeUnretainedValue()
-                    MainActor.assumeIsolated { monitor.receive(type: type, event: event) }
-                }
-                return Unmanaged.passUnretained(event)
-            },
-            userInfo: Unmanaged.passUnretained(monitor).toOpaque()
-        ), let source = CFMachPortCreateRunLoopSource(nil, tap, 0) else {
-            throw FlickError.message("Could not observe input safely. Check Flick's Accessibility permission, then try again.")
+        guard
+            let tap = CGEvent.tapCreate(
+                tap: .cgSessionEventTap,
+                place: .headInsertEventTap,
+                options: .listenOnly,
+                eventsOfInterest: mask,
+                callback: { _, type, event, context in
+                    if let context {
+                        let monitor = Unmanaged<WindowMoveInputMonitor>.fromOpaque(context)
+                            .takeUnretainedValue()
+                        MainActor.assumeIsolated { monitor.receive(type: type, event: event) }
+                    }
+                    return Unmanaged.passUnretained(event)
+                },
+                userInfo: Unmanaged.passUnretained(monitor).toOpaque()
+            ), let source = CFMachPortCreateRunLoopSource(nil, tap, 0)
+        else {
+            throw FlickError.message(
+                "Could not observe input safely. Check Flick's Accessibility permission, then try again."
+            )
         }
         CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
         CGEvent.tapEnable(tap: tap, enable: true)
@@ -83,7 +93,8 @@ final class WindowMoveInputMonitor {
 
     static func interrupts(type: CGEventType, event: CGEvent, shortcuts: [SpaceShortcut]) -> Bool {
         switch type {
-        case .leftMouseDown, .rightMouseDown, .otherMouseDown, .tapDisabledByTimeout, .tapDisabledByUserInput:
+        case .leftMouseDown, .rightMouseDown, .otherMouseDown, .tapDisabledByTimeout,
+            .tapDisabledByUserInput:
             return true
         case .keyDown:
             let modifiers: CGEventFlags = [.maskCommand, .maskControl, .maskAlternate, .maskShift]

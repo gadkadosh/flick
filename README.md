@@ -80,8 +80,6 @@ build/Flick.app/Contents/MacOS/Flick --smoke-test
 
 The unit tests cover Space layout parsing and adjacency, confirmed move-and-follow ordering, silent API failures, cancellation, shortcut conflicts and presets, hotkey repeat handling, queue ordering/capacity/closure, and input interruption or lost keyboard observation before refocusing or replaying queued moves. They do not execute the private APIs or prove macOS compatibility.
 
-GitHub Actions runs the unit tests and builds and verifies the ad-hoc-signed app bundle on macOS 15 with Xcode 16.4 for pushes and pull requests. Window moves still need the manual validation above.
-
 `--diagnose` reads settings, permission status, and runtime API availability, and briefly registers/unregisters hotkeys without moving windows. Runtime symbol availability is not proof that macOS will apply a move. `--smoke-test` briefly starts the menu-bar app with move callbacks disabled and exits. Quit any running Flick instance before either check so its registrations do not interfere. Accessibility permission reported from a terminal-run binary may differ from the app launched through Finder/LaunchServices.
 
 ### Code map

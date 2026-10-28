@@ -17,28 +17,39 @@ public struct SpaceMove {
 
     public init(backend: any SpaceBackend, pause: (() async -> Void)? = nil) {
         self.backend = backend
-        self.pause = pause ?? {
-            await withCheckedContinuation { continuation in
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.002) { continuation.resume() }
+        self.pause =
+            pause ?? {
+                await withCheckedContinuation { continuation in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.002) {
+                        continuation.resume()
+                    }
+                }
             }
-        }
     }
 
     @discardableResult
     public func move(windowID: UInt32, direction: Direction) async throws -> SpaceRoute {
         try Task.checkCancellation()
-        let route = try SpaceRoute(displays: backend.displays(), windowSpaces: backend.spaces(for: windowID), direction: direction)
+        let route = try SpaceRoute(
+            displays: backend.displays(),
+            windowSpaces: backend.spaces(for: windowID),
+            direction: direction
+        )
         try backend.move(windowID: windowID, to: route.destinationID)
 
         // These operations can return successfully without applying anything.
         // Confirm exact membership before following, never just visibility.
-        guard try await waitUntil({ try backend.spaces(for: windowID) == [route.destinationID] }) else {
+        guard try await waitUntil({ try backend.spaces(for: windowID) == [route.destinationID] })
+        else {
             throw SpaceMoveError.moveNotConfirmed(route.destinationID)
         }
         try backend.activate(spaceID: route.destinationID, on: route.displayID)
-        guard try await waitUntil({
-            try backend.displays().first(where: { $0.id == route.displayID })?.currentSpaceID == route.destinationID
-        }) else {
+        guard
+            try await waitUntil({
+                try backend.displays().first(where: { $0.id == route.displayID })?.currentSpaceID
+                    == route.destinationID
+            })
+        else {
             throw SpaceMoveError.followNotConfirmed(route.destinationID)
         }
         return route

@@ -1,4 +1,5 @@
 import Testing
+
 @testable import FlickCore
 
 @MainActor
@@ -12,7 +13,7 @@ struct SpaceMoveTests {
             polls += 1
             if polls == 1 {
                 #expect(backend.events == [.move(77, 2)])
-                backend.membership = [1, 2] // Adding to a Space alone is insufficient.
+                backend.membership = [1, 2]  // Adding to a Space alone is insufficient.
             } else if polls == 2 {
                 #expect(backend.events == [.move(77, 2)])
                 backend.membership = [2]
@@ -58,7 +59,10 @@ struct SpaceMoveTests {
     @Test func aBoundaryDoesNotDispatchAnyOperation() async {
         let backend = FakeSpaceBackend()
         await #expect(throws: SpaceMoveError.boundary(.previous)) {
-            try await SpaceMove(backend: backend, pause: {}).move(windowID: 77, direction: .previous)
+            try await SpaceMove(backend: backend, pause: {}).move(
+                windowID: 77,
+                direction: .previous
+            )
         }
         #expect(backend.events.isEmpty)
     }
@@ -78,7 +82,10 @@ struct SpaceMoveTests {
         let backend = FakeSpaceBackend()
         let task = Task { @MainActor in
             withUnsafeCurrentTask { $0?.cancel() }
-            return try await SpaceMove(backend: backend, pause: {}).move(windowID: 77, direction: .next)
+            return try await SpaceMove(backend: backend, pause: {}).move(
+                windowID: 77,
+                direction: .next
+            )
         }
         await #expect(throws: CancellationError.self) { try await task.value }
         #expect(backend.events.isEmpty)
@@ -107,7 +114,10 @@ struct SpaceMoveTests {
 
 @MainActor
 private final class FakeSpaceBackend: SpaceBackend {
-    enum Event: Equatable { case move(UInt32, UInt64), follow(UInt64, String) }
+    enum Event: Equatable {
+        case move(UInt32, UInt64)
+        case follow(UInt64, String)
+    }
     enum Failure: Error { case rejected }
     var events: [Event] = []
     var membership: [UInt64] = [1]
@@ -117,7 +127,13 @@ private final class FakeSpaceBackend: SpaceBackend {
     var moveError: Failure?
 
     func displays() -> [SpaceDisplay] {
-        [SpaceDisplay(id: "display", currentSpaceID: currentSpace, spaces: [Space(id: 1), Space(id: 2), Space(id: 3)])]
+        [
+            SpaceDisplay(
+                id: "display",
+                currentSpaceID: currentSpace,
+                spaces: [Space(id: 1), Space(id: 2), Space(id: 3)]
+            )
+        ]
     }
 
     func spaces(for windowID: UInt32) -> [UInt64] { membership }

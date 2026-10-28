@@ -1,13 +1,19 @@
 import AppKit
 import ApplicationServices
-import ServiceManagement
 import FlickCore
+import ServiceManagement
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
-    private let idleImage = NSImage(systemSymbolName: "arrow.left.arrow.right", accessibilityDescription: "Flick")
-    private let busyImage = NSImage(systemSymbolName: "hourglass", accessibilityDescription: "Moving window")
+    private let idleImage = NSImage(
+        systemSymbolName: "arrow.left.arrow.right",
+        accessibilityDescription: "Flick"
+    )
+    private let busyImage = NSImage(
+        systemSymbolName: "hourglass",
+        accessibilityDescription: "Moving window"
+    )
     private let menu = NSMenu()
     private let hotkeys = HotKeys()
     private let mover = WindowMover()
@@ -17,7 +23,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let defaults = UserDefaults.standard
 
     private var preset: MoveShortcutPreset {
-        get { MoveShortcutPreset(rawValue: defaults.string(forKey: "moveShortcutPreset") ?? "") ?? .optionShift }
+        get {
+            MoveShortcutPreset(rawValue: defaults.string(forKey: "moveShortcutPreset") ?? "")
+                ?? .optionShift
+        }
         set { defaults.set(newValue.rawValue, forKey: "moveShortcutPreset") }
     }
 
@@ -45,7 +54,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let conflicts = systemConflicts(for: preset, in: symbolicHotkeys())
             guard !conflicts.contains("79"), !conflicts.contains("81") else {
                 hotkeys.unregister()
-                throw FlickError.message("Move shortcuts must differ from your Mission Control space-switching shortcuts. Choose another preset.")
+                throw FlickError.message(
+                    "Move shortcuts must differ from your Mission Control space-switching shortcuts. Choose another preset."
+                )
             }
             try hotkeys.register(preset)
             registrationError = nil
@@ -58,10 +69,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func move(_ direction: Direction) {
         if moveTask != nil || mover.busy {
             if mover.enqueue(direction) {
-                statusItem.button?.toolTip = "Move queued for the same window (\(mover.pendingMoves) waiting)."
+                statusItem.button?.toolTip =
+                    "Move queued for the same window (\(mover.pendingMoves) waiting)."
             } else {
                 NSSound.beep()
-                statusItem.button?.toolTip = "Cannot queue another move: the queue is full or the move sequence has finished."
+                statusItem.button?.toolTip =
+                    "Cannot queue another move: the queue is full or the move sequence has finished."
             }
             return
         }
@@ -92,7 +105,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let shortcutMenu = NSMenu()
         shortcutMenu.autoenablesItems = false
         for (index, option) in MoveShortcutPreset.allCases.enumerated() {
-            let item = NSMenuItem(title: "\(option.modifiersLabel)[ / \(option.modifiersLabel)]", action: #selector(changePreset(_:)), keyEquivalent: "")
+            let item = NSMenuItem(
+                title: "\(option.modifiersLabel)[ / \(option.modifiersLabel)]",
+                action: #selector(changePreset(_:)),
+                keyEquivalent: ""
+            )
             item.target = self
             item.tag = index
             item.state = preset == option ? .on : .off
@@ -108,7 +125,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if SMAppService.mainApp.status == .requiresApproval { login.title += " (approval needed)" }
 
         menu.addItem(.separator())
-        add(AXIsProcessTrusted() ? "Accessibility: allowed" : "Accessibility: permission needed", action: nil)
+        add(
+            AXIsProcessTrusted() ? "Accessibility: allowed" : "Accessibility: permission needed",
+            action: nil
+        )
         add("Grant Accessibility…", action: #selector(grantAccessibility))
         add("Mission Control shortcut settings…", action: #selector(openKeyboardSettings))
         let conflicts = systemConflicts(for: preset, in: symbolicHotkeys())
@@ -119,7 +139,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             add("⚠ Shortcuts could not be registered", action: #selector(showLastResult))
         }
         menu.addItem(.separator())
-        add(mover.busy ? "Move in progress (\(mover.pendingMoves) queued)…" : "Last result…", action: #selector(showLastResult))
+        add(
+            mover.busy ? "Move in progress (\(mover.pendingMoves) queued)…" : "Last result…",
+            action: #selector(showLastResult)
+        )
         add("About Flick…", action: #selector(showAbout))
         menu.addItem(.separator())
         add("Quit Flick", action: #selector(quit), key: "q")
@@ -156,7 +179,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 SMAppService.openSystemSettingsLoginItems()
             } else {
                 try SMAppService.mainApp.register()
-                if SMAppService.mainApp.status == .requiresApproval { SMAppService.openSystemSettingsLoginItems() }
+                if SMAppService.mainApp.status == .requiresApproval {
+                    SMAppService.openSystemSettingsLoginItems()
+                }
             }
         } catch {
             lastResult = "Launch at login: \(error.localizedDescription)"
@@ -166,9 +191,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc private func grantAccessibility() {
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        let options =
+            [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
-        openSettings("x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")
+        openSettings(
+            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+        )
     }
     @objc private func openKeyboardSettings() {
         openSettings("x-apple.systempreferences:com.apple.preference.keyboard?Shortcuts")
@@ -179,10 +207,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func showLastResult() { alert("Flick", lastResult) }
     @objc private func showConflicts() {
         let ids = systemConflicts(for: preset, in: symbolicHotkeys()).joined(separator: ", ")
-        alert("System shortcut overlap", "macOS reserves this key combination too (symbolic hotkey IDs: \(ids)). macOS creates implicit Shift variants of Space-switching shortcuts. If Flick's shortcuts do not fire, choose a different preset in ‘Move shortcuts’. Flick does not edit your system shortcuts.")
+        alert(
+            "System shortcut overlap",
+            "macOS reserves this key combination too (symbolic hotkey IDs: \(ids)). macOS creates implicit Shift variants of Space-switching shortcuts. If Flick's shortcuts do not fire, choose a different preset in ‘Move shortcuts’. Flick does not edit your system shortcuts."
+        )
     }
     @objc private func showAbout() {
-        alert("Flick", "Moves ordinary windows directly to an adjacent desktop Space and follows without a slide animation. The cursor, window size, and position are left alone.\n\nRequires Accessibility and compatible undocumented macOS Space APIs. SIP stays enabled. macOS updates may break compatibility; Flick reports unconfirmed moves instead of falling back to dragging. Fullscreen, Stage Manager, and multi-monitor behavior are not yet validated.\n\nBracket shortcuts use physical US-layout bracket keys.")
+        alert(
+            "Flick",
+            "Moves ordinary windows directly to an adjacent desktop Space and follows without a slide animation. The cursor, window size, and position are left alone.\n\nRequires Accessibility and compatible undocumented macOS Space APIs. SIP stays enabled. macOS updates may break compatibility; Flick reports unconfirmed moves instead of falling back to dragging. Fullscreen, Stage Manager, and multi-monitor behavior are not yet validated.\n\nBracket shortcuts use physical US-layout bracket keys."
+        )
     }
     private func alert(_ title: String, _ message: String) {
         NSApp.activate(ignoringOtherApps: true)
@@ -198,7 +232,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let moveTask else { return .terminateNow }
         moveTask.cancel()
         Task {
-            await moveTask.value // Finish the current move-and-follow before exiting.
+            await moveTask.value  // Finish the current move-and-follow before exiting.
             sender.reply(toApplicationShouldTerminate: true)
         }
         return .terminateLater
