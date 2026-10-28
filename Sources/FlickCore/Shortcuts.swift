@@ -26,7 +26,7 @@ public struct SpaceShortcut: Equatable {
         for (flag, modifier): (CGEventFlags, Int) in [
             (.maskAlphaShift, alphaLock), (.maskShift, shiftKey),
             (.maskControl, controlKey), (.maskAlternate, optionKey),
-            (.maskCommand, cmdKey)
+            (.maskCommand, cmdKey),
         ] where quartz.contains(flag) {
             carbon |= UInt32(modifier)
         }
@@ -35,15 +35,16 @@ public struct SpaceShortcut: Equatable {
 
     public static func read(direction: Direction, from hotkeys: [String: Any]) -> SpaceShortcut? {
         guard let entry = hotkeys[direction.symbolicID] as? [String: Any],
-              (entry["enabled"] as? NSNumber)?.boolValue == true,
-              let value = entry["value"] as? [String: Any],
-              let parameters = value["parameters"] as? [NSNumber],
-              parameters.count == 3 else { return nil }
+            (entry["enabled"] as? NSNumber)?.boolValue == true,
+            let value = entry["value"] as? [String: Any],
+            let parameters = value["parameters"] as? [NSNumber],
+            parameters.count == 3
+        else { return nil }
         let code = parameters[1].intValue
         guard (0..<128).contains(code) else { return nil }
         // Reject unknown modifier bits rather than synthesize a different shortcut.
         let flags = parameters[2].uint64Value
-        let supported: UInt64 = 0x1F0000 // Caps Lock, Shift, Control, Option, Command
+        let supported: UInt64 = 0x1F0000  // Caps Lock, Shift, Control, Option, Command
         guard flags & ~supported == 0 else { return nil }
         return SpaceShortcut(keyCode: UInt16(code), flags: flags)
     }
@@ -83,12 +84,13 @@ public func systemConflicts(for preset: MoveShortcutPreset, in hotkeys: [String:
     let shortcuts = Direction.allCases.map { preset.shortcut(for: $0) }
     return hotkeys.compactMap { id, raw in
         guard let entry = raw as? [String: Any],
-              (entry["enabled"] as? NSNumber)?.boolValue == true,
-              let value = entry["value"] as? [String: Any],
-              let parameters = value["parameters"] as? [NSNumber], parameters.count == 3,
-              shortcuts.contains(where: {
-                  Int($0.keyCode) == parameters[1].intValue && $0.flags == parameters[2].uint64Value
-              }) else { return nil }
+            (entry["enabled"] as? NSNumber)?.boolValue == true,
+            let value = entry["value"] as? [String: Any],
+            let parameters = value["parameters"] as? [NSNumber], parameters.count == 3,
+            shortcuts.contains(where: {
+                Int($0.keyCode) == parameters[1].intValue && $0.flags == parameters[2].uint64Value
+            })
+        else { return nil }
         return id
     }.sorted()
 }

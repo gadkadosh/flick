@@ -10,9 +10,21 @@ public enum SyntheticInput {
         return source
     }
 
-    public static func keyStroke(_ shortcut: SpaceShortcut, source: CGEventSource) -> (down: CGEvent, up: CGEvent)? {
-        guard let down = CGEvent(keyboardEventSource: source, virtualKey: shortcut.keyCode, keyDown: true),
-              let up = CGEvent(keyboardEventSource: source, virtualKey: shortcut.keyCode, keyDown: false) else { return nil }
+    public static func keyStroke(_ shortcut: SpaceShortcut, source: CGEventSource) -> (
+        down: CGEvent, up: CGEvent
+    )? {
+        guard
+            let down = CGEvent(
+                keyboardEventSource: source,
+                virtualKey: shortcut.keyCode,
+                keyDown: true
+            ),
+            let up = CGEvent(
+                keyboardEventSource: source,
+                virtualKey: shortcut.keyCode,
+                keyDown: false
+            )
+        else { return nil }
         // Use only Mission Control's modifiers, not the move shortcut's held
         // Option/Shift. Do not synthesize releases of the user's modifier keys.
         down.flags = CGEventFlags(rawValue: shortcut.flags)
@@ -21,9 +33,16 @@ public enum SyntheticInput {
         return (down, up)
     }
 
-    public static func mouse(_ type: CGEventType, at point: CGPoint, source: CGEventSource) -> CGEvent? {
-        let event = CGEvent(mouseEventSource: source, mouseType: type, mouseCursorPosition: point, mouseButton: .left)
-        event?.flags = [] // A normal title-bar drag, even with hardware modifiers held.
+    public static func mouse(_ type: CGEventType, at point: CGPoint, source: CGEventSource)
+        -> CGEvent?
+    {
+        let event = CGEvent(
+            mouseEventSource: source,
+            mouseType: type,
+            mouseCursorPosition: point,
+            mouseButton: .left
+        )
+        event?.flags = []  // A normal title-bar drag, even with hardware modifiers held.
         event?.setIntegerValueField(.mouseEventClickState, value: 1)
         return event
     }

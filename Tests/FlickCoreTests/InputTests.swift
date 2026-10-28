@@ -1,5 +1,6 @@
 import CoreGraphics
 import Testing
+
 @testable import FlickCore
 
 struct InputTests {
@@ -26,7 +27,9 @@ struct InputTests {
     @Test func mouseEventsAreUnmodified() throws {
         let source = try #require(SyntheticInput.makeSource())
         for type: CGEventType in [.leftMouseDown, .leftMouseDragged, .leftMouseUp, .mouseMoved] {
-            let event = try #require(SyntheticInput.mouse(type, at: CGPoint(x: 50, y: 40), source: source))
+            let event = try #require(
+                SyntheticInput.mouse(type, at: CGPoint(x: 50, y: 40), source: source)
+            )
             #expect(event.flags.isEmpty)
             #expect(event.type == type)
             #expect(event.location == CGPoint(x: 50, y: 40))
