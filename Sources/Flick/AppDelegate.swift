@@ -69,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         moveTask = Task { [weak self] in
             guard let self else { return }
             do {
-                lastResult = try await mover.move(direction)
+                lastResult = try await mover.move(direction, preset: preset)
             } catch is CancellationError {
                 lastResult = "Move cancelled."
             } catch {

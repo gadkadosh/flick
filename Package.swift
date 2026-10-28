@@ -9,7 +9,8 @@ let package = Package(
         .target(name: "FlickCore"),
         .target(name: "SkyLightBridge", cSettings: [.unsafeFlags(["-fobjc-arc"])]),
         .executableTarget(name: "Flick", dependencies: ["FlickCore", "SkyLightBridge"]),
-        .testTarget(name: "FlickCoreTests", dependencies: ["FlickCore"])
+        .testTarget(name: "FlickCoreTests", dependencies: ["FlickCore"]),
+        .testTarget(name: "FlickTests", dependencies: ["Flick"])
     ],
     swiftLanguageModes: [.v5]
 )

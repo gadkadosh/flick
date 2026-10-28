@@ -49,11 +49,11 @@ Flick captures the focused window through Accessibility and identifies its curre
 
 The move result appears under **Last result…** and in the menu-bar tooltip. A successful result confirms both destination membership and the destination desktop. An unconfirmed move does not trigger a desktop-switch request. If the window moves but following fails, Flick reports that distinction; it does not automatically navigate back or replay queued steps against another window.
 
-Queued requests retain the same captured window. Focus changes, failed operations, and desktop boundaries stop the sequence and discard remaining requests. Flick does not wrap, create Spaces, or skip a fullscreen Space between two desktops.
+Queued requests retain the same captured window. Focus changes detected between steps, failed operations, and desktop boundaries stop the sequence and discard remaining requests. During a sequence, any mouse click or key press other than Flick's configured move shortcuts also discards queued requests. Modifier changes and pointer movement are allowed. Flick observes this input without blocking it; the in-flight move-and-follow finishes, but Flick skips refocusing after an interruption. Flick does not wrap, create Spaces, or skip a fullscreen Space between two desktops.
 
 Fullscreen/Split View windows, dialogs, and windows belonging to multiple or all Spaces are rejected. An adjacent fullscreen/Split View destination is also rejected. Custom title bars do not require special handling. Stage Manager and multiple displays are not yet validated with live moves; destination selection uses the captured window's display rather than the cursor's display.
 
-Flick refuses to start during a user mouse drag. Quitting discards queued requests and lets the current bounded move-and-follow operation finish before exiting. No synthetic mouse button is held and no cursor or window-frame cleanup is needed.
+Flick refuses to start during a user mouse drag or while Secure Keyboard Entry prevents keyboard observation. If secure entry is detected during a sequence, the current move-and-follow finishes, but queued requests and refocusing are skipped—even if secure entry ends before the move finishes. Flick does not change Secure Keyboard Entry settings. Quitting discards queued requests and lets the current bounded move-and-follow operation finish before exiting. No synthetic mouse button is held and no cursor or window-frame cleanup is needed.
 
 ### Manual validation
 
@@ -65,6 +65,7 @@ Start with one display, Stage Manager off, and at least two adjacent ordinary de
 4. With three adjacent Spaces, tap right twice quickly. Confirm the same window travels two Spaces. Also test queued opposite directions.
 5. Test the desktop boundary: the window and desktop should stay put, and queued steps should be discarded.
 6. Test a fullscreen window and fullscreen destination (both should reject), switching focus during a queued sequence, and quitting during a move.
+7. With Secure Keyboard Entry active, confirm that a move is refused without moving the window or desktop. If it becomes active during a sequence, confirm only the in-flight step finishes, without refocusing or replaying queued requests.
 
 A successful build does not replace these live checks. CI tests move ordering and failure handling without invoking the private operations.
 
@@ -77,7 +78,7 @@ build/Flick.app/Contents/MacOS/Flick --diagnose
 build/Flick.app/Contents/MacOS/Flick --smoke-test
 ```
 
-The unit tests cover Space layout parsing and adjacency, confirmed move-and-follow ordering, silent API failures, cancellation, shortcut conflicts and presets, hotkey repeat handling, and queue ordering/capacity/closure. They do not execute the private APIs or prove macOS compatibility.
+The unit tests cover Space layout parsing and adjacency, confirmed move-and-follow ordering, silent API failures, cancellation, shortcut conflicts and presets, hotkey repeat handling, queue ordering/capacity/closure, and input interruption or lost keyboard observation before refocusing or replaying queued moves. They do not execute the private APIs or prove macOS compatibility.
 
 GitHub Actions runs the unit tests and builds and verifies the ad-hoc-signed app bundle on macOS 15 with Xcode 16.4 for pushes and pull requests. Window moves still need the manual validation above.
 
@@ -91,6 +92,7 @@ The main path is **hotkey → app delegate → window mover → confirmed Space 
 - [`AppDelegate.swift`](Sources/Flick/AppDelegate.swift): owns the menu, preferences, hotkeys, and asynchronous move task.
 - [`HotKeys.swift`](Sources/Flick/HotKeys.swift): registers global shortcuts and reports distinct presses.
 - [`WindowMover.swift`](Sources/Flick/WindowMover.swift): captures and refocuses one window for the whole queued sequence; adapts the bridge to the core move logic.
+- [`WindowMoveInputMonitor.swift`](Sources/Flick/WindowMoveInputMonitor.swift): passively observes input during a sequence so user intervention cannot be hidden by refocusing.
 - [`Spaces.swift`](Sources/FlickCore/Spaces.swift): desktop layout parsing and adjacent destination selection.
 - [`SpaceMove.swift`](Sources/FlickCore/SpaceMove.swift): dispatches a move, verifies membership, follows, and verifies the desktop.
 - [`SkyLightBridge.m`](Sources/SkyLightBridge/SkyLightBridge.m): isolates private C symbols and Objective-C operations, with runtime capability checks and Objective-C exception handling.
