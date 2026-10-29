@@ -8,6 +8,7 @@ public protocol SpaceBackend {
     func spaces(for windowID: UInt32) throws -> [UInt64]
     func move(windowID: UInt32, to spaceID: UInt64) throws
     func activate(spaceID: UInt64, on displayID: String) throws
+    func visibleSpaces() throws -> [UInt64]
 }
 
 @MainActor
@@ -46,8 +47,7 @@ public struct SpaceMove {
         }
         guard
             try await confirmation.waitUntil({
-                try backend.displays().first(where: { $0.id == route.displayID })?.currentSpaceID
-                    == route.destinationID
+                try confirmation.destinationIsVisible(route, using: backend)
             })
         else {
             throw SpaceMoveError.followNotConfirmed(route.destinationID)

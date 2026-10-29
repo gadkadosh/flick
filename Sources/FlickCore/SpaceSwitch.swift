@@ -20,8 +20,7 @@ public struct SpaceSwitch {
         try backend.activate(spaceID: route.destinationID, on: route.displayID)
         guard
             try await confirmation.waitUntil({
-                try backend.displays().first(where: { $0.id == route.displayID })?.currentSpaceID
-                    == route.destinationID
+                try confirmation.destinationIsVisible(route, using: backend)
             })
         else {
             throw SpaceMoveError.switchNotConfirmed(route.destinationID)
@@ -45,6 +44,14 @@ struct SpaceConfirmation {
                     }
                 }
             }
+    }
+
+    func destinationIsVisible(_ route: SpaceRoute, using backend: any SpaceBackend) throws -> Bool {
+        guard let display = try backend.displays().first(where: { $0.id == route.displayID }),
+            display.currentSpaceID == route.destinationID
+        else { return false }
+        let visible = Set(try backend.visibleSpaces())
+        return display.spaces.filter { visible.contains($0.id) }.map(\.id) == [route.destinationID]
     }
 
     func waitUntil(_ condition: () throws -> Bool) async throws -> Bool {

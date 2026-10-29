@@ -7,6 +7,9 @@ CFArrayRef _Nullable FlickCopyDisplays(void) CF_RETURNS_RETAINED;
 /// The keyboard-active display, not the display containing the pointer.
 CFStringRef _Nullable FlickCopyActiveDisplay(void) CF_RETURNS_RETAINED;
 CFArrayRef _Nullable FlickCopyWindowSpaces(CGWindowID window) CF_RETURNS_RETAINED;
+CFArrayRef _Nullable FlickCopyVisibleSpaces(void) CF_RETURNS_RETAINED;
 CGWindowID FlickWindowID(AXUIElementRef _Nonnull window);
 bool FlickMoveWindow(CGWindowID window, uint64_t space);
-bool FlickActivateSpace(CFStringRef _Nonnull display, uint64_t space);
+/// Show the destination and hide only other managed Spaces on this display.
+bool FlickActivateSpace(CFStringRef _Nonnull display, uint64_t space,
+                        CFArrayRef _Nonnull spacesToHide);

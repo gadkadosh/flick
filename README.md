@@ -48,13 +48,13 @@ Bracket shortcuts use physical US-layout bracket key positions. Arbitrary shortc
 
 ### Switching Spaces
 
-Standalone switching reads macOS's active menu-bar display, not the display under the pointer or the display of a captured window. It activates the adjacent ordinary desktop and confirms the destination. No focused window is required, and Flick does not move, raise, or explicitly refocus windows. macOS handles the destination's focus.
+Standalone switching reads macOS's active menu-bar display, not the display under the pointer or the display of a captured window. It shows the adjacent ordinary desktop, hides the other managed Spaces on that display, and confirms both the current desktop and its exclusive visibility. No focused window is required, and Flick does not move, raise, or explicitly refocus windows. macOS handles the destination's focus.
 
 Queued switches retain the same display and stop if the active display changes, an operation fails, or a desktop boundary is reached. Window moves and standalone switching cannot run together; a different kind of action is rejected while a sequence is running. Flick does not wrap, create Spaces, or skip fullscreen/Split View Spaces. An unidentified display fails without guessing another display. Multi-display and shared-Space configurations still need live validation.
 
 ### Moving windows
 
-Flick captures the focused window through Accessibility and identifies its current desktop and the adjacent Space on the same display. It requests a direct move, waits until that window belongs exclusively to the destination, and then switches the display to that desktop without a slide animation. It confirms the active desktop before refocusing the captured window. Window size, position, and cursor coordinates are never written.
+Flick captures the focused window through Accessibility and identifies its current desktop and the adjacent Space on the same display. It requests a direct move, waits until that window belongs exclusively to the destination, and then switches the display to that desktop without a slide animation. It confirms the active desktop and that no other managed Space on its display remains visible before refocusing the captured window. Window size, position, and cursor coordinates are never written.
 
 The move result appears under **Last result…** and in the menu-bar tooltip. A successful result confirms both destination membership and the destination desktop. An unconfirmed move does not trigger a desktop-switch request. If the window moves but following fails, Flick reports that distinction; it does not automatically navigate back or replay queued steps against another window.
 
@@ -68,7 +68,7 @@ Flick refuses to start a window move during a user mouse drag or while Secure Ke
 
 Start with one display, Stage Manager off, and at least two adjacent ordinary desktop Spaces.
 
-1. Switch right and back with **⌃→ / ⌃←**. Confirm no slide animation, cursor movement, or window movement, and that macOS restores useful focus. Repeat from the desktop with no ordinary window focused. With three Spaces, test rapid presses and opposite directions; check the boundary. Check that a conflicting Mission Control shortcut disables only Flick's switch shortcuts, and that reopening Flick's menu after resolving it enables them.
+1. Switch right and back with **⌃→ / ⌃←**, including an empty destination and consecutive empty desktops. Confirm the outgoing windows disappear, the wallpaper repaints, only one menu bar is visible, no slide animation or cursor/window movement occurs, and macOS restores useful focus. Repeat from the desktop with no ordinary window focused. With three Spaces, test rapid presses and opposite directions; check the boundary. Check that a conflicting Mission Control shortcut disables only Flick's switch shortcuts, and that reopening Flick's menu after resolving it enables them.
 2. Move Zen right and back left. Confirm its address field stays closed, both the window and desktop move, and there is no slide animation or cursor jump.
 3. Repeat with a filled/tiled Ghostty window. Check that its size, position, terminal grid, and focus remain unchanged after each move.
 4. Repeat while keeping the shortcut modifiers held.

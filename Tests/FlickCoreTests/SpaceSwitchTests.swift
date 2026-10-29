@@ -16,6 +16,7 @@ struct SpaceSwitchTests {
         #expect(backend.activations == [.init(space: 12, display: "active")])
         #expect(backend.currentSpace == 12)
         #expect(backend.otherCurrentSpace == 20)
+        #expect(backend.visible == [12, 20])
         #expect(backend.windowCalls == 0)
     }
 
@@ -27,10 +28,12 @@ struct SpaceSwitchTests {
             polls += 1
             #expect(backend.activations == [.init(space: 12, display: "active")])
             backend.currentSpace = 12
+            backend.visible = polls == 1 ? [11, 12, 20] : [12, 20]
         }
         let route = try await switcher.switchSpace(displayID: "active", direction: .next)
         #expect(route.destinationID == 12)
-        #expect(polls == 1)
+        #expect(polls == 2)
+        #expect(backend.visible == [12, 20])
         #expect(backend.windowCalls == 0)
     }
 
@@ -56,6 +59,23 @@ struct SpaceSwitchTests {
         }
         #expect(backend.activations == [.init(space: 12, display: "active")])
         #expect(backend.currentSpace == 11)
+        #expect(backend.windowCalls == 0)
+    }
+
+    @Test(arguments: [[UInt64](), [11], [11, 12]])
+    func currentIDWithoutExclusiveDestinationVisibilityIsNotSuccess(visible: [UInt64]) async {
+        let backend = SwitchBackend()
+        backend.applyVisibility = false
+        backend.visible = visible + [20]
+        await #expect(throws: SpaceMoveError.switchNotConfirmed(12)) {
+            try await SpaceSwitch(backend: backend).switchSpace(
+                displayID: "active",
+                direction: .next
+            )
+        }
+        #expect(backend.currentSpace == 12)
+        #expect(backend.visible == visible + [20])
+        #expect(backend.activations == [.init(space: 12, display: "active")])
         #expect(backend.windowCalls == 0)
     }
 
@@ -131,6 +151,7 @@ struct SpaceSwitchTests {
         let switcher = SpaceSwitch(backend: backend) {
             withUnsafeCurrentTask { $0?.cancel() }
             backend.currentSpace = 12
+            backend.visible = [12, 20]
         }
         let task = Task { @MainActor in
             let route = try await switcher.switchSpace(displayID: "active", direction: .next)
@@ -156,6 +177,8 @@ private final class SwitchBackend: SpaceBackend {
     var activations: [Activation] = []
     var currentSpace: UInt64 = 11
     var otherCurrentSpace: UInt64 = 20
+    var visible: [UInt64] = [11, 20]
+    var applyVisibility = true
     var fullscreenID: UInt64?
     var applyActivation = true
     var rejectActivation = false
@@ -176,11 +199,19 @@ private final class SwitchBackend: SpaceBackend {
         ]
     }
 
+    func visibleSpaces() -> [UInt64] { visible }
+
     func activate(spaceID: UInt64, on displayID: String) throws {
         activations.append(Activation(space: spaceID, display: displayID))
         if rejectActivation { throw Failure.rejected }
         if applyActivation {
-            if displayID == "active" { currentSpace = spaceID } else { otherCurrentSpace = spaceID }
+            if displayID == "active" {
+                currentSpace = spaceID
+                if applyVisibility { visible = [spaceID, otherCurrentSpace] }
+            } else {
+                otherCurrentSpace = spaceID
+                if applyVisibility { visible = [currentSpace, spaceID] }
+            }
         }
     }
 

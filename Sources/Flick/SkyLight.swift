@@ -34,8 +34,21 @@ struct SkyLight: SpaceBackend {
         }
     }
 
+    func visibleSpaces() throws -> [UInt64] {
+        guard let raw = FlickCopyVisibleSpaces() as? [NSNumber] else {
+            throw FlickError.message("Could not read desktop Space visibility.")
+        }
+        return raw.map(\.uint64Value)
+    }
+
     func activate(spaceID: UInt64, on displayID: String) throws {
-        guard FlickActivateSpace(displayID as CFString, spaceID) else {
+        guard let display = try displays().first(where: { $0.id == displayID }),
+            display.spaces.contains(where: { $0.id == spaceID })
+        else { throw SpaceMoveError.invalidLayout }
+        // Include all other managed Spaces on this display, not just the last
+        // current ID, so a previously overlapping desktop is also hidden.
+        let spacesToHide = display.spaces.filter { $0.id != spaceID }.map { NSNumber(value: $0.id) }
+        guard FlickActivateSpace(displayID as CFString, spaceID, spacesToHide as CFArray) else {
             throw FlickError.message("macOS rejected the desktop switch.")
         }
     }

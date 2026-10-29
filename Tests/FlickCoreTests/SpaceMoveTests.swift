@@ -20,11 +20,15 @@ struct SpaceMoveTests {
             } else {
                 #expect(backend.events == [.move(77, 2), .follow(2, "display")])
                 backend.currentSpace = 2
+                // Correct bookkeeping alone must not finish the move. Both the
+                // destination and the outgoing desktop's visibility matter.
+                backend.visible = polls == 3 ? [1, 2] : [2]
             }
         }
         let route = try await mover.move(windowID: 77, direction: .next)
         #expect(route.destinationID == 2)
-        #expect(polls == 3)
+        #expect(polls == 4)
+        #expect(backend.visible == [2])
         #expect(backend.membership == [2])
         #expect(backend.currentSpace == 2)
     }
@@ -54,6 +58,19 @@ struct SpaceMoveTests {
         #expect(backend.events == [.move(77, 2), .follow(2, "display")])
         #expect(backend.membership == [2])
         #expect(backend.currentSpace == 1)
+    }
+
+    @Test func followWithOverlappingDesktopsIsNotReportedAsSuccessful() async {
+        let backend = FakeSpaceBackend()
+        backend.applyVisibility = false
+        backend.visible = [1, 2]
+        await #expect(throws: SpaceMoveError.followNotConfirmed(2)) {
+            try await SpaceMove(backend: backend).move(windowID: 77, direction: .next)
+        }
+        #expect(backend.membership == [2])
+        #expect(backend.currentSpace == 2)
+        #expect(backend.visible == [1, 2])
+        #expect(backend.events == [.move(77, 2), .follow(2, "display")])
     }
 
     @Test func aBoundaryDoesNotDispatchAnyOperation() async {
@@ -133,6 +150,8 @@ private final class FakeSpaceBackend: SpaceBackend {
     var events: [Event] = []
     var membership: [UInt64] = [1]
     var currentSpace: UInt64 = 1
+    var visible: [UInt64] = [1]
+    var applyVisibility = true
     var applyMove = true
     var applyFollow = true
     var rejectFollow = false
@@ -149,6 +168,7 @@ private final class FakeSpaceBackend: SpaceBackend {
     }
 
     func spaces(for windowID: UInt32) -> [UInt64] { membership }
+    func visibleSpaces() -> [UInt64] { visible }
 
     func move(windowID: UInt32, to spaceID: UInt64) throws {
         events.append(.move(windowID, spaceID))
@@ -159,6 +179,9 @@ private final class FakeSpaceBackend: SpaceBackend {
     func activate(spaceID: UInt64, on displayID: String) throws {
         events.append(.follow(spaceID, displayID))
         if rejectFollow { throw Failure.rejected }
-        if applyFollow { currentSpace = spaceID }
+        if applyFollow {
+            currentSpace = spaceID
+            if applyVisibility { visible = [spaceID] }
+        }
     }
 }

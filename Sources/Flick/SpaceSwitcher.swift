@@ -52,6 +52,6 @@ final class SpaceSwitcher {
             )
         }
         return
-            "Switched \(completedSwitches) Space(s) on the active display; destination confirmed. No windows moved."
+            "Switched \(completedSwitches) Space(s) on the active display; destination and visibility confirmed. No windows moved."
     }
 }
