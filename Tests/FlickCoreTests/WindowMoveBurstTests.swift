@@ -3,17 +3,17 @@ import Testing
 @testable import FlickCore
 
 struct WindowMoveBurstTests {
-    @Test func requestsAreAcceptedOnlyDuringHeldWindowPhase() {
+    @Test func requestsAreAcceptedOnlyDuringTheCapturedWindowSequence() {
         var burst = WindowMoveBurst()
         let beforeBegin = burst.enqueue(.next)
         burst.begin()
-        let duringDrag = burst.enqueue(.next)
+        let duringMove = burst.enqueue(.next)
         burst.close()
-        let afterDrop = burst.enqueue(.next)
+        let afterFinish = burst.enqueue(.next)
         let next = burst.takeNext()
         #expect(!beforeBegin)
-        #expect(duringDrag)
-        #expect(!afterDrop)
+        #expect(duringMove)
+        #expect(!afterFinish)
         #expect(next == nil)
     }
 
