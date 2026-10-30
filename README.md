@@ -1,11 +1,10 @@
 # Flick
 
-A small macOS menu-bar app that switches adjacent desktop Spaces instantly, or moves the focused window and follows it.
+Switch macOS Spaces without animation. Flick is a small menu-bar app that jumps to an adjacent desktop, or moves the focused window and follows it.
 
 - **⌃← / ⌃→**: switch to the previous / next Space without moving windows
 - **⌥⇧[ / ⌥⇧]**: move the focused window to the previous / next Space and follow it
 - Rapid presses queue actions; alternative move shortcuts and launch at login are available in the menu
-- No dragging, cursor movement, window resizing, or slide animation
 - No external dependencies, screen capture, SIP changes, telemetry, or network access
 
 **Experimental:** Flick uses undocumented macOS APIs. Switching and window moves have been validated only on one display on macOS 27.0.1 with SIP enabled. macOS updates may break them. Flick reports failures rather than falling back to simulated dragging.
