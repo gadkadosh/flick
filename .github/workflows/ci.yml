@@ -27,4 +27,4 @@ jobs:
       - name: Run unit tests
         run: ./scripts/test.sh
       - name: Build and verify the app bundle
-        run: ./scripts/build-app.sh
+        run: make
