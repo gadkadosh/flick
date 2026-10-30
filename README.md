@@ -15,12 +15,7 @@ No external dependencies, screen capture, SIP changes, telemetry, or network acc
 
 Requires Swift 6 / Xcode 16+. The app targets macOS 13+, but older releases have not been verified.
 
-1. Clone or download this repository, then run:
-
-   ```sh
-   make
-   ```
-
+1. Clone or download this repository, then run `make` from its directory.
 2. Copy `build/Flick.app` to `/Applications` (or `~/Applications`), then open the installed copy. Do this **before** granting permission or enabling launch at login.
 3. To move windows, choose **Grant Accessibility…** in Flick's menu, click **Open System Settings** in the macOS prompt, and enable Flick under **Privacy & Security → Accessibility**. Use `+` to add the app if needed. Switching desktops alone does not need this permission.
 
