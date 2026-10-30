@@ -10,14 +10,8 @@ struct ShortcutPreferences {
 
     var movePreset: ShortcutPreset {
         get {
-            let saved = defaults.string(forKey: "moveShortcutPreset") ?? ""
-            if let preset = ShortcutPreset(rawValue: saved) { return preset }
-            // Preserve legacy families. The old unshifted Control–Option move
-            // preset now uses Shift, like every other move preset.
-            switch saved {
-            case "controlOption", "controlOptionShift": return .controlOptionBrackets
-            default: return .optionBrackets
-            }
+            ShortcutPreset(rawValue: defaults.string(forKey: "moveShortcutPreset") ?? "")
+                ?? .optionBrackets
         }
         nonmutating set { defaults.set(newValue.rawValue, forKey: "moveShortcutPreset") }
     }

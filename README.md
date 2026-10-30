@@ -37,7 +37,7 @@ Both shortcut menus offer the same families, with Shift added for moving. Select
 | Option + brackets (default) | ⌥[ / ⌥] | ⌥⇧[ / ⌥⇧] |
 | Control–Option + brackets | ⌃⌥[ / ⌃⌥] | ⌃⌥⇧[ / ⌃⌥⇧] |
 
-macOS's own switching default is Control + arrows. Upgrading Flick changes its previously fixed switching keys to Option + brackets unless you select another preset. Existing move families are preserved; the old unshifted Control–Option move preset gains Shift.
+macOS's own switching default is Control + arrows. Unrecognized saved presets fall back to Option + brackets.
 
 Tap repeatedly to queue up to eight waiting steps. Queued moves keep the same window; you can keep the modifiers held, but release the shortcut key between presses. Avoid switching apps or desktops during a sequence. Clicking or typing during queued window moves cancels the remaining steps; the current step finishes without stealing focus back.
 

@@ -41,22 +41,4 @@ struct ShortcutPreferencesTests {
             #expect(ShortcutPreferences(defaults: preferences.defaults).switchingEnabled)
         }
     }
-
-    @Test func legacyMovePreferencesKeepTheirKeyFamily() {
-        withPreferences { preferences in
-            for (saved, expected): (String, ShortcutPreset) in [
-                ("optionShift", .optionBrackets),
-                ("controlOption", .controlOptionBrackets),
-                ("controlOptionShift", .controlOptionBrackets),
-            ] {
-                preferences.defaults.set(saved, forKey: "moveShortcutPreset")
-                #expect(preferences.movePreset == expected)
-                #expect(
-                    preferences.movePreset.shortcut(for: .previous, action: .moveWindow).flags
-                        == (expected == .optionBrackets ? 0xA0000 : 0xE0000)
-                )
-                #expect(preferences.switchPreset == .optionBrackets)
-            }
-        }
-    }
 }
