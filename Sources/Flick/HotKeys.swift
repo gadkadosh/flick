@@ -57,15 +57,12 @@ final class HotKeys {
         )
     }
 
-    func register(_ preset: MoveShortcutPreset) throws {
-        try register(Direction.allCases.map { (preset.shortcut(for: $0), preset.label(for: $0)) })
-    }
-
-    func registerSpaceSwitches() throws {
-        try register([
-            (SpaceShortcut.switchShortcut(for: .previous), "⌃←"),
-            (SpaceShortcut.switchShortcut(for: .next), "⌃→"),
-        ])
+    func register(_ preset: ShortcutPreset, action: SpaceAction) throws {
+        try register(
+            Direction.allCases.map {
+                (preset.shortcut(for: $0, action: action), preset.label(for: $0, action: action))
+            }
+        )
     }
 
     private func register(_ shortcuts: [(SpaceShortcut, String)]) throws {

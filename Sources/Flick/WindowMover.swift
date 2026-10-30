@@ -44,7 +44,7 @@ final class WindowMover {
         return burst.enqueue(direction)
     }
 
-    func move(_ direction: Direction, preset: MoveShortcutPreset) async throws -> String {
+    func move(_ direction: Direction, preset: ShortcutPreset) async throws -> String {
         guard !busy else { throw FlickError.message("A move is already in progress.") }
         busy = true
         defer {
@@ -52,7 +52,9 @@ final class WindowMover {
             busy = false
         }
         let target = try capture()
-        let observation = try observeInput(Direction.allCases.map { preset.shortcut(for: $0) }) {
+        let observation = try observeInput(
+            Direction.allCases.map { preset.shortcut(for: $0, action: .moveWindow) }
+        ) {
             [weak self] in
             self?.burst.close()
         }

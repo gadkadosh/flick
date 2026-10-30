@@ -2,9 +2,9 @@
 
 Switch macOS Spaces without animation. Flick is a small menu-bar app that jumps to an adjacent desktop, or moves the focused window and follows it.
 
-- **⌃← / ⌃→**: switch to the previous / next Space without moving windows
+- **⌥[ / ⌥]**: switch to the previous / next Space without moving windows
 - **⌥⇧[ / ⌥⇧]**: move the focused window to the previous / next Space and follow it
-- Rapid presses queue actions; alternative move shortcuts and launch at login are available in the menu
+- Rapid presses queue actions; independent switch/move presets and launch at login are available in the menu
 - No external dependencies, screen capture, SIP changes, telemetry, or network access
 
 **Experimental:** Flick uses undocumented macOS APIs. Switching and window moves have been validated only on one display on macOS 27.0.1 with SIP enabled. macOS updates may break them. Flick reports failures rather than falling back to simulated dragging.
@@ -21,13 +21,23 @@ Flick is distributed as source and requires Swift 6 / Xcode 16+ to build. It can
 
 2. Quit any running Flick instance. Copy `build/Flick.app` to `/Applications` (or `~/Applications`) **before** granting permission or enabling launch at login, then open the installed copy.
 3. For window moves, choose **Grant Accessibility…** in Flick's menu and enable Flick under **System Settings → Privacy & Security → Accessibility**. If needed, use `+` to add the app. Standalone Space switching does not require Accessibility.
-4. To use **⌃← / ⌃→**, disable or reassign matching shortcuts under **System Settings → Keyboard → Keyboard Shortcuts → Mission Control**, then reopen Flick's menu. macOS normally reserves these keys; conflicting shortcuts disable Flick's switching shortcuts, not window moves.
+4. Choose **Switch shortcuts** and **Move shortcuts** in Flick's menu if you prefer another key family. If a shortcut does not fire reliably, disable or reassign matching shortcuts under **System Settings → Keyboard → Keyboard Shortcuts → Mission Control**, then reopen Flick's menu to retry registration.
 
 The build is locally signed for your Mac, not notarized. Keep the app in a stable location; rebuilding may require removing and re-adding its Accessibility entry. To preserve signing across rebuilds, set `FLICK_SIGN_IDENTITY` to an installed signing identity.
 
 ## Using Flick
 
-Press **⌃← / ⌃→** to switch desktops, or focus an ordinary window in another app and press **⌥⇧[ / ⌥⇧]** to move it and follow. Turn off **Switch Spaces: ⌃← / ⌃→** in the menu if you only want window moving.
+By default, press **⌥[ / ⌥]** to switch desktops, or focus an ordinary window in another app and press **⌥⇧[ / ⌥⇧]** to move it and follow. Turn off **Switch Spaces** in the menu if you only want window moving.
+
+Both shortcut menus offer the same families, with Shift added for moving. Selections are independent and saved between launches:
+
+| Preset | Switch Space | Move window + follow |
+| --- | --- | --- |
+| Control + arrows | ⌃← / ⌃→ | ⌃⇧← / ⌃⇧→ |
+| Option + brackets (default) | ⌥[ / ⌥] | ⌥⇧[ / ⌥⇧] |
+| Control–Option + brackets | ⌃⌥[ / ⌃⌥] | ⌃⌥⇧[ / ⌃⌥⇧] |
+
+macOS's own switching default is Control + arrows. Upgrading Flick changes its previously fixed switching keys to Option + brackets unless you select another preset. Existing move families are preserved; the old unshifted Control–Option move preset gains Shift.
 
 Tap repeatedly to queue up to eight waiting steps. Queued moves keep the same window; you can keep the modifiers held, but release the shortcut key between presses. Avoid switching apps or desktops during a sequence. Clicking or typing during queued window moves cancels the remaining steps; the current step finishes without stealing focus back.
 
@@ -35,7 +45,9 @@ Check **Last result…** or the menu-bar tooltip if an action fails. If a window
 
 ### Shortcut conflicts
 
-If a move shortcut does not fire, choose **⌃⌥[ / ⌃⌥]** or **⌃⌥⇧[ / ⌃⌥⇧]** under **Move shortcuts**. macOS may reserve shortcuts, including Shift variants of Mission Control shortcuts; Flick's menu warns about known overlaps. Flick does not change your keyboard or animation settings.
+**Possible system shortcut overlap…** means macOS lists the same keys in its preferences—not that Flick cannot use them. macOS also stores hidden Shift variants of Mission Control shortcuts, which are not shown separately in System Settings. If Flick works reliably, no action is needed.
+
+Overlaps are advisory: Flick attempts registration, and reports actual registration failures separately. If keys do not fire, switch twice, or show an animation, choose another Flick preset or disable/reassign matching Mission Control shortcuts, then reopen Flick's menu. Successful registration alone does not prove macOS will leave the keys to Flick. Flick does not change your keyboard or animation settings.
 
 Bracket shortcuts use physical US-layout bracket key positions. Custom shortcuts and layout-aware key selection are not supported.
 
@@ -58,7 +70,9 @@ build/Flick.app/Contents/MacOS/Flick --smoke-test
 
 Quit any running Flick instance before diagnostics or the smoke test. `--diagnose` checks settings, permissions, API availability, and shortcuts without moving windows or switching desktops. `--smoke-test` briefly launches with Space operations disabled. Terminal-reported Accessibility permission may differ from permission for the installed app.
 
-Automated tests do not execute the private APIs or prove macOS compatibility. Changes to switching or window moves also need live checks: use adjacent ordinary desktops with one display and Stage Manager off; verify switching, moving, rapid presses, desktop boundaries, fullscreen rejection, and interruption handling without cursor jumps, resizing, or slide animations.
+Automated tests do not execute the private APIs or prove macOS compatibility. For shortcut changes, check both submenus, independent persistence, switching on/off, and overlap warnings separately from registration errors. With matching Mission Control bindings enabled, verify one switch per press without animation; repeat after disabling those system bindings.
+
+Changes to switching or window moves also need live checks: use adjacent ordinary desktops with one display and Stage Manager off; verify switching, moving, rapid presses, desktop boundaries, fullscreen rejection, and interruption handling without cursor jumps, resizing, or slide animations.
 
 Issues and small, focused pull requests are welcome. For failures, include your macOS version, affected app, display/Space setup, shortcut preset, and **Last result…** message. Run the checks above before submitting code.
 

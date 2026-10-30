@@ -23,20 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var lastResult = "Ready."
     private var registrationError: String?
     private var switchRegistrationError: String?
-    private let defaults = UserDefaults.standard
-
-    private var preset: MoveShortcutPreset {
-        get {
-            MoveShortcutPreset(rawValue: defaults.string(forKey: "moveShortcutPreset") ?? "")
-                ?? .optionShift
-        }
-        set { defaults.set(newValue.rawValue, forKey: "moveShortcutPreset") }
-    }
-
-    private var switchingEnabled: Bool {
-        get { defaults.object(forKey: "spaceSwitchingEnabled") as? Bool ?? true }
-        set { defaults.set(newValue, forKey: "spaceSwitchingEnabled") }
-    }
+    private let shortcuts = ShortcutPreferences()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
@@ -64,14 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func registerShortcuts() {
         registerSwitchShortcuts()
         do {
-            let conflicts = systemConflicts(for: preset, in: symbolicHotkeys())
-            guard !conflicts.contains("79"), !conflicts.contains("81") else {
-                hotkeys.unregister()
-                throw FlickError.message(
-                    "Move shortcuts must differ from your Mission Control space-switching shortcuts. Choose another preset."
-                )
-            }
-            try hotkeys.register(preset)
+            try hotkeys.register(shortcuts.movePreset, action: .moveWindow)
             registrationError = nil
         } catch {
             registrationError = error.localizedDescription
@@ -82,15 +62,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func registerSwitchShortcuts() {
         switchHotkeys.unregister()
         switchRegistrationError = nil
-        guard switchingEnabled else { return }
+        guard shortcuts.switchingEnabled else { return }
         do {
-            let shortcuts = Direction.allCases.map { SpaceShortcut.switchShortcut(for: $0) }
-            guard systemConflicts(for: shortcuts, in: symbolicHotkeys()).isEmpty else {
-                throw FlickError.message(
-                    "To switch with ⌃← / ⌃→, disable or reassign matching shortcuts in System Settings → Keyboard → Keyboard Shortcuts → Mission Control. Reopen Flick's menu to retry. Window-move shortcuts are unaffected."
-                )
-            }
-            try switchHotkeys.registerSpaceSwitches()
+            try switchHotkeys.register(shortcuts.switchPreset, action: .switchSpace)
         } catch {
             switchRegistrationError = error.localizedDescription
         }
@@ -118,7 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 if switching {
                     lastResult = try await switcher.switchSpace(direction)
                 } else {
-                    lastResult = try await mover.move(direction, preset: preset)
+                    lastResult = try await mover.move(direction, preset: shortcuts.movePreset)
                 }
             } catch is CancellationError {
                 lastResult = "Space operation cancelled."
@@ -136,32 +110,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func rebuildMenu() {
         menu.removeAllItems()
         add("Flick · experimental", action: nil)
-        add("Move window left: \(preset.label(for: .previous))", action: nil)
-        add("Move window right: \(preset.label(for: .next))", action: nil)
-        let switching = add("Switch Spaces: ⌃← / ⌃→", action: #selector(toggleSwitching))
-        switching.state = switchingEnabled ? .on : .off
+        add(
+            "Move window left: \(shortcuts.movePreset.label(for: .previous, action: .moveWindow))",
+            action: nil
+        )
+        add(
+            "Move window right: \(shortcuts.movePreset.label(for: .next, action: .moveWindow))",
+            action: nil
+        )
+        let switching = add(
+            "Switch Spaces: \(shortcuts.switchPreset.label(for: .switchSpace))",
+            action: #selector(toggleSwitching)
+        )
+        switching.state = shortcuts.switchingEnabled ? .on : .off
         switching.isEnabled = operationTask == nil
         if switchRegistrationError != nil {
             add("⚠ Space-switch shortcuts unavailable…", action: #selector(showShortcutErrors))
         }
         menu.addItem(.separator())
-        let shortcutMenu = NSMenu()
-        shortcutMenu.autoenablesItems = false
-        for (index, option) in MoveShortcutPreset.allCases.enumerated() {
-            let item = NSMenuItem(
-                title: "\(option.modifiersLabel)[ / \(option.modifiersLabel)]",
-                action: #selector(changePreset(_:)),
-                keyEquivalent: ""
-            )
-            item.target = self
-            item.tag = index
-            item.state = preset == option ? .on : .off
-            item.isEnabled = operationTask == nil
-            shortcutMenu.addItem(item)
-        }
-        let shortcutItem = add("Move shortcuts", action: nil)
-        shortcutItem.submenu = shortcutMenu
-        shortcutItem.isEnabled = operationTask == nil
+        addShortcutMenu("Switch shortcuts", action: .switchSpace)
+        addShortcutMenu("Move shortcuts", action: .moveWindow)
 
         let login = add("Launch at login", action: #selector(toggleLogin))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -174,9 +142,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         add("Grant Accessibility…", action: #selector(grantAccessibility))
         add("Mission Control shortcut settings…", action: #selector(openKeyboardSettings))
-        let conflicts = systemConflicts(for: preset, in: symbolicHotkeys())
-        if !conflicts.isEmpty {
-            add("⚠ System also reserves these shortcuts", action: #selector(showConflicts))
+        if !shortcutOverlaps().isEmpty {
+            add("⚠ Possible system shortcut overlap…", action: #selector(showConflicts))
         }
         if registrationError != nil {
             add("⚠ Move shortcuts could not be registered…", action: #selector(showShortcutErrors))
@@ -202,12 +169,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return item
     }
 
-    @objc private func changePreset(_ item: NSMenuItem) {
-        let old = preset
-        preset = MoveShortcutPreset.allCases[item.tag]
+    private func addShortcutMenu(_ title: String, action: SpaceAction) {
+        let submenu = NSMenu()
+        submenu.autoenablesItems = false
+        let selected = action == .moveWindow ? shortcuts.movePreset : shortcuts.switchPreset
+        for (index, option) in ShortcutPreset.allCases.enumerated() {
+            let item = NSMenuItem(
+                title: option.label(for: action),
+                action: action == .moveWindow
+                    ? #selector(changeMovePreset(_:)) : #selector(changeSwitchPreset(_:)),
+                keyEquivalent: ""
+            )
+            item.target = self
+            item.tag = index
+            item.state = selected == option ? .on : .off
+            item.isEnabled = operationTask == nil
+            submenu.addItem(item)
+        }
+        let item = add(title, action: nil)
+        item.submenu = submenu
+        item.isEnabled = operationTask == nil
+    }
+
+    @objc private func changeMovePreset(_ item: NSMenuItem) {
+        let old = shortcuts.movePreset
+        shortcuts.movePreset = ShortcutPreset.allCases[item.tag]
         registerShortcuts()
         if let error = registrationError {
-            preset = old
+            shortcuts.movePreset = old
             registerShortcuts()
             lastResult = error
             showLastResult()
@@ -215,8 +204,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         rebuildMenu()
     }
 
+    @objc private func changeSwitchPreset(_ item: NSMenuItem) {
+        let old = shortcuts.switchPreset
+        shortcuts.switchPreset = ShortcutPreset.allCases[item.tag]
+        registerSwitchShortcuts()
+        if let error = switchRegistrationError {
+            shortcuts.switchPreset = old
+            registerSwitchShortcuts()
+            lastResult = error
+            showLastResult()
+        }
+        rebuildMenu()
+    }
+
     @objc private func toggleSwitching() {
-        switchingEnabled.toggle()
+        shortcuts.switchingEnabled.toggle()
         registerSwitchShortcuts()
         rebuildMenu()
     }
@@ -262,11 +264,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let url = URL(string: url) { NSWorkspace.shared.open(url) }
     }
     @objc private func showLastResult() { alert("Flick", lastResult) }
+    private func shortcutOverlaps() -> [String] {
+        let settings = symbolicHotkeys()
+        var overlaps: [String] = []
+        for action in SpaceAction.allCases {
+            if action == .switchSpace && !shortcuts.switchingEnabled { continue }
+            let preset = action == .moveWindow ? shortcuts.movePreset : shortcuts.switchPreset
+            let ids = systemConflicts(for: preset, action: action, in: settings)
+            if !ids.isEmpty {
+                let name = action == .moveWindow ? "Move" : "Switch"
+                overlaps.append(
+                    "\(name): \(preset.label(for: action)) (system IDs: \(ids.joined(separator: ", ")))"
+                )
+            }
+        }
+        return overlaps
+    }
+
     @objc private func showConflicts() {
-        let ids = systemConflicts(for: preset, in: symbolicHotkeys()).joined(separator: ", ")
         alert(
-            "System shortcut overlap",
-            "macOS reserves this key combination too (symbolic hotkey IDs: \(ids)). macOS creates implicit Shift variants of Space-switching shortcuts. If Flick's shortcuts do not fire, choose a different preset in ‘Move shortcuts’. Flick does not edit your system shortcuts."
+            "Possible system shortcut overlap",
+            "\(shortcutOverlaps().joined(separator: "\n"))\n\nmacOS lists these keys in its preferences, including hidden Shift variants of Mission Control shortcuts that are not shown separately in System Settings. This does not prove macOS will intercept them. If Flick works reliably, no action is needed.\n\nIf keys do not fire, switch twice, or show an animation, choose another Flick preset or disable/reassign the matching Mission Control shortcuts in System Settings. Reopen Flick's menu to retry registration. Flick does not change your system settings."
         )
     }
     @objc private func showAbout() {

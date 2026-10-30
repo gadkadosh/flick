@@ -156,7 +156,9 @@ struct WindowMoverTests {
             moveStep: { _, _ in Issue.record("Must not move without input observation") },
             observeInput: { _, _ in throw FlickError.message("Observation unavailable.") }
         )
-        await #expect(throws: FlickError.self) { try await mover.move(.next, preset: .optionShift) }
+        await #expect(throws: FlickError.self) {
+            try await mover.move(.next, preset: .optionBrackets)
+        }
         #expect(!mover.busy)
         #expect(!mover.enqueue(.previous))
     }
@@ -222,5 +224,5 @@ private final class MoveHarness {
         observation?.receive(type: type, event: event)
     }
 
-    func run() async throws -> String { try await mover.move(.next, preset: .optionShift) }
+    func run() async throws -> String { try await mover.move(.next, preset: .optionBrackets) }
 }

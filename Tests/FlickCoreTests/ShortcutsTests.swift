@@ -51,74 +51,99 @@ struct ShortcutsTests {
         )
     }
 
-    @Test func implicitShiftConflicts() {
+    @Test func implicitShiftOverlaps() {
         let settings = [
             "79": entry(), "80": entry(flags: 0xA0000), "82": entry(code: 30, flags: 0xA0000),
         ]
-        #expect(systemConflicts(for: .optionShift, in: settings) == ["80", "82"])
-        #expect(systemConflicts(for: .controlOption, in: settings).isEmpty)
-    }
-
-    @Test func disabledConflictIgnored() {
         #expect(
-            systemConflicts(for: .optionShift, in: ["80": entry(enabled: false, flags: 0xA0000)])
-                .isEmpty
+            systemConflicts(for: .optionBrackets, action: .moveWindow, in: settings) == [
+                "80", "82",
+            ]
+        )
+        #expect(systemConflicts(for: .optionBrackets, action: .switchSpace, in: settings) == ["79"])
+        #expect(
+            systemConflicts(for: .controlOptionBrackets, action: .moveWindow, in: settings).isEmpty
         )
     }
 
-    @Test func presetsUseMatchingEventAndRegistrationModifiers() {
-        let expected: [(MoveShortcutPreset, UInt64, UInt32, String)] = [
-            (.optionShift, 0xA0000, UInt32(optionKey | shiftKey), "⌥⇧"),
-            (.controlOption, 0xC0000, UInt32(controlKey | optionKey), "⌃⌥"),
-            (.controlOptionShift, 0xE0000, UInt32(controlKey | optionKey | shiftKey), "⌃⌥⇧"),
+    @Test func disabledOverlapIgnored() {
+        #expect(
+            systemConflicts(
+                for: .optionBrackets,
+                action: .moveWindow,
+                in: ["80": entry(enabled: false, flags: 0xA0000)]
+            ).isEmpty
+        )
+    }
+
+    @Test func pairedPresetsUseMatchingLabelsEventAndRegistrationModifiers() {
+        let expected: [(ShortcutPreset, UInt16, UInt16, UInt64, UInt32, String, String)] = [
+            (.controlArrows, 123, 124, 0x40000, UInt32(controlKey), "⌃", "←→"),
+            (.optionBrackets, 33, 30, 0x80000, UInt32(optionKey), "⌥", "[]"),
+            (.controlOptionBrackets, 33, 30, 0xC0000, UInt32(controlKey | optionKey), "⌃⌥", "[]"),
         ]
-        #expect(expected.count == MoveShortcutPreset.allCases.count)
-        for (preset, flags, modifiers, label) in expected {
-            for direction in Direction.allCases {
-                let shortcut = preset.shortcut(for: direction)
-                #expect(shortcut.keyCode == (direction == .previous ? 33 : 30))
-                #expect(shortcut.flags == flags)
-                #expect(shortcut.carbonModifiers == modifiers)
+        #expect(expected.count == ShortcutPreset.allCases.count)
+        for (preset, previous, next, flags, carbon, modifiers, keys) in expected {
+            for action in SpaceAction.allCases {
+                let moving = action == .moveWindow
+                for direction in Direction.allCases {
+                    let shortcut = preset.shortcut(for: direction, action: action)
+                    #expect(shortcut.keyCode == (direction == .previous ? previous : next))
+                    #expect(shortcut.flags == flags | (moving ? 0x20000 : 0))
+                    #expect(shortcut.carbonModifiers == carbon | (moving ? UInt32(shiftKey) : 0))
+                    let key = direction == .previous ? keys.first! : keys.last!
+                    #expect(
+                        preset.label(for: direction, action: action)
+                            == modifiers + (moving ? "⇧" : "") + String(key)
+                    )
+                }
                 #expect(
-                    preset.label(for: direction) == label + (direction == .previous ? "[" : "]")
+                    preset.label(for: action)
+                        == preset.label(for: .previous, action: action) + " / "
+                        + preset.label(for: .next, action: action)
                 )
             }
         }
     }
 
-    @Test func standaloneSwitchesUseControlArrowsAndDetectSystemConflicts() {
-        let previous = SpaceShortcut.switchShortcut(for: .previous)
-        let next = SpaceShortcut.switchShortcut(for: .next)
-        #expect(previous.keyCode == 123)
-        #expect(next.keyCode == 124)
-        #expect(previous.carbonModifiers == UInt32(controlKey))
-        #expect(next.carbonModifiers == UInt32(controlKey))
-        let settings = [
-            "79": entry(code: 123, flags: 0x40000),
-            "81": entry(code: 124, flags: 0x40000),
-            "82": entry(code: 124, flags: 0x60000),
-        ]
-        #expect(systemConflicts(for: [previous, next], in: settings) == ["79", "81"])
-        #expect(
-            systemConflicts(
-                for: [previous, next],
-                in: ["79": entry(enabled: false, code: 123, flags: 0x40000)]
-            ).isEmpty
-        )
-        #expect(systemConflicts(for: .optionShift, in: settings).isEmpty)
+    @Test func independentSelectionsNeverUseTheSameCombination() {
+        for move in ShortcutPreset.allCases {
+            for switching in ShortcutPreset.allCases {
+                for direction in Direction.allCases {
+                    #expect(
+                        move.shortcut(for: direction, action: .moveWindow)
+                            != switching.shortcut(for: direction, action: .switchSpace)
+                    )
+                }
+            }
+        }
     }
 
-    @Test func missingSystemOverridesStillReserveDefaultControlArrows() {
-        let switches = Direction.allCases.map { SpaceShortcut.switchShortcut(for: $0) }
+    @Test func missingSystemOverridesKeepMacOSControlArrowDefaults() {
         let defaults = resolvingDefaultSpaceShortcuts(in: [:])
-        #expect(systemConflicts(for: switches, in: defaults) == ["79", "81"])
-        #expect(SpaceShortcut.read(direction: .previous, from: defaults) == switches[0])
+        #expect(
+            systemConflicts(for: .controlArrows, action: .switchSpace, in: defaults) == [
+                "79", "81",
+            ]
+        )
+        #expect(
+            systemConflicts(for: .controlArrows, action: .moveWindow, in: defaults) == ["80", "82"]
+        )
+        #expect(
+            SpaceShortcut.read(direction: .previous, from: defaults)
+                == ShortcutPreset.controlArrows.shortcut(for: .previous, action: .switchSpace)
+        )
         let disabled = resolvingDefaultSpaceShortcuts(in: [
             "79": ["enabled": false], "81": ["enabled": false],
         ])
-        #expect(systemConflicts(for: switches, in: disabled).isEmpty)
+        #expect(systemConflicts(for: .controlArrows, action: .switchSpace, in: disabled).isEmpty)
         let reassigned = resolvingDefaultSpaceShortcuts(in: ["79": entry(), "81": entry(code: 30)])
-        #expect(systemConflicts(for: switches, in: reassigned).isEmpty)
+        #expect(systemConflicts(for: .controlArrows, action: .switchSpace, in: reassigned).isEmpty)
+        #expect(
+            systemConflicts(for: .optionBrackets, action: .switchSpace, in: reassigned) == [
+                "79", "81",
+            ]
+        )
     }
 
     @Test func eachQuartzModifierConvertsToItsCarbonEquivalent() {

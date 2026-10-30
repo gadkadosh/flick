@@ -32,29 +32,19 @@ struct FlickMain {
                     print("Switch \(direction.label): disabled or unsupported")
                 }
             }
-            let switchKeys = HotKeys(signature: 0x464C_5357)
-            do {
-                try switchKeys.registerSpaceSwitches()
-                print("Switch ⌃← / ⌃→: registration OK")
-            } catch { print(error.localizedDescription) }
-            switchKeys.stop()
-            let switchConflicts = systemConflicts(
-                for: Direction.allCases.map { SpaceShortcut.switchShortcut(for: $0) },
-                in: settings
-            )
-            if !switchConflicts.isEmpty {
-                print("  Switch system overlaps: \(switchConflicts.joined(separator: ", "))")
-            }
-            for preset in MoveShortcutPreset.allCases {
-                let keys = HotKeys()
-                do {
-                    try keys.register(preset)
-                    print("Move \(preset.modifiersLabel)[/]: registration OK")
-                } catch { print(error.localizedDescription) }
-                keys.stop()
-                let conflicts = systemConflicts(for: preset, in: settings)
-                if !conflicts.isEmpty {
-                    print("  System overlaps: \(conflicts.joined(separator: ", "))")
+            for action in SpaceAction.allCases {
+                let name = action == .moveWindow ? "Move" : "Switch"
+                for preset in ShortcutPreset.allCases {
+                    let keys = HotKeys()
+                    do {
+                        try keys.register(preset, action: action)
+                        print("\(name) \(preset.label(for: action)): registration OK")
+                    } catch { print(error.localizedDescription) }
+                    keys.stop()
+                    let conflicts = systemConflicts(for: preset, action: action, in: settings)
+                    if !conflicts.isEmpty {
+                        print("  Possible system overlaps: \(conflicts.joined(separator: ", "))")
+                    }
                 }
             }
         } else {
