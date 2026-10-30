@@ -25,7 +25,7 @@ The app is locally signed, not notarized. Keep it in a stable location; rebuildi
 
 Use the shortcuts above, or choose alternatives under **Switch shortcuts** and **Move shortcuts** in the menu. Bracket shortcuts use physical US-layout bracket key positions.
 
-If shortcuts don’t work or still animate, choose another shortcut preset or disable conflicting Mission Control shortcuts in System Settings. Check **Last result…** in Flick’s menu for errors.
+If shortcuts don’t work or still animate, choose another shortcut preset or open **Keyboard Shortcuts…** in Flick’s menu, select **Mission Control** in the sidebar, and disable or reassign conflicting shortcuts. Check **Last result…** in Flick’s menu for errors.
 
 ## Limitations
 
