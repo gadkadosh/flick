@@ -27,7 +27,7 @@ The build is locally signed for your Mac, not notarized. Keep the app in a stabl
 
 ## Using Flick
 
-By default, press **⌥[ / ⌥]** to switch desktops, or focus an ordinary window in another app and press **⌥⇧[ / ⌥⇧]** to move it and follow. Turn off **Switch Spaces** in the menu if you only want window moving.
+By default, press **⌥[ / ⌥]** to switch desktops, or focus an ordinary window in another app and press **⌥⇧[ / ⌥⇧]** to move it and follow. Uncheck **Enable Space switching** in the menu if you only want window moving. The read-only shortcut summary then shows “(off)”.
 
 Both shortcut menus offer the same families, with Shift added for moving. Selections are independent and saved between launches:
 

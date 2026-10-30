@@ -115,24 +115,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func rebuildMenu() {
         menu.removeAllItems()
         add("Flick · experimental", action: nil)
+        let switchState = shortcuts.switchingEnabled ? "" : " (off)"
         add(
-            "Move window left: \(shortcuts.movePreset.label(for: .previous, action: .moveWindow))",
+            "Switch Spaces: \(shortcuts.switchPreset.label(for: .switchSpace))\(switchState)",
             action: nil
         )
-        add(
-            "Move window right: \(shortcuts.movePreset.label(for: .next, action: .moveWindow))",
-            action: nil
-        )
-        let switching = add(
-            "Switch Spaces: \(shortcuts.switchPreset.label(for: .switchSpace))",
-            action: #selector(toggleSwitching)
-        )
+        add("Move window: \(shortcuts.movePreset.label(for: .moveWindow))", action: nil)
+        menu.addItem(.separator())
+        let switching = add("Enable Space switching", action: #selector(toggleSwitching))
         switching.state = shortcuts.switchingEnabled ? .on : .off
         switching.isEnabled = operationTask == nil
-        if switchRegistrationError != nil {
-            add("⚠ Space-switch shortcuts unavailable…", action: #selector(showShortcutErrors))
-        }
-        menu.addItem(.separator())
         addShortcutMenu("Switch shortcuts", action: .switchSpace)
         addShortcutMenu("Move shortcuts", action: .moveWindow)
 
@@ -149,6 +141,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         add("Mission Control shortcut settings…", action: #selector(openKeyboardSettings))
         if !shortcutOverlaps().isEmpty {
             add("⚠ Possible system shortcut overlap…", action: #selector(showConflicts))
+        }
+        if switchRegistrationError != nil {
+            add("⚠ Space-switch shortcuts unavailable…", action: #selector(showShortcutErrors))
         }
         if moveRegistrationError != nil {
             add("⚠ Move shortcuts could not be registered…", action: #selector(showShortcutErrors))
