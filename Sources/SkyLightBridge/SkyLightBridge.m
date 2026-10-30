@@ -12,12 +12,12 @@
 
 @protocol FlickActivateOperation
 - (instancetype)initWithDisplayIdentifier:(NSString *)display spaceID:(uint64_t)space;
-- (id)performWithWMBridgeDelegate;
+- (void)performWithWMBridgeDelegate;
 @end
 
 @protocol FlickVisibilityOperation
 - (instancetype)initWithSpaces:(NSArray<NSNumber *> *)spaces;
-- (id)performWithWMBridgeDelegate;
+- (void)performWithWMBridgeDelegate;
 @end
 
 static int (*mainConnection)(void);
