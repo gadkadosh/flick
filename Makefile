@@ -1,4 +1,4 @@
-.PHONY: build format format-check
+.PHONY: build test format format-check
 
 SWIFT ?= swift
 CLANG_FORMAT ?= xcrun clang-format
@@ -7,6 +7,9 @@ OBJC_FILES := $(wildcard Sources/SkyLightBridge/*.m Sources/SkyLightBridge/inclu
 
 build:
 	./scripts/build-app.sh
+
+test:
+	./scripts/test.sh
 
 format:
 	$(SWIFT) format format --configuration .swift-format --in-place --recursive $(SWIFT_FILES)

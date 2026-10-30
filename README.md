@@ -50,7 +50,7 @@ Bracket shortcuts use physical US-layout bracket key positions. Custom shortcuts
 ## Development and contributing
 
 ```sh
-./scripts/test.sh
+make test
 make
 build/Flick.app/Contents/MacOS/Flick --diagnose
 build/Flick.app/Contents/MacOS/Flick --smoke-test
