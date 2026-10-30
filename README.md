@@ -29,8 +29,6 @@ The build is locally signed for your Mac, not notarized. Keep the app in a stabl
 
 By default, press **⌥[ / ⌥]** to switch desktops, or focus an ordinary window in another app and press **⌥⇧[ / ⌥⇧]** to move it and follow. Uncheck **Enable Space switching** in the menu if you only want window moving. The read-only shortcut summary then shows “(off)”.
 
-The menu-bar icon shows the current desktop's number in a box, matching Mission Control. It follows the active menu-bar display (not the pointer) and updates even when you switch outside Flick or add, remove, or reorder desktops. Fullscreen/Split View Spaces show a fullscreen symbol; if the current Space cannot be read, Flick shows its arrows instead. Clicking still opens the menu.
-
 Both shortcut menus offer the same families, with Shift added for moving. Selections are independent and saved between launches:
 
 | Preset | Switch Space | Move window + follow |
