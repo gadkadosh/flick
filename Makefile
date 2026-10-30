@@ -1,9 +1,12 @@
-.PHONY: format format-check
+.PHONY: build format format-check
 
 SWIFT ?= swift
 CLANG_FORMAT ?= xcrun clang-format
 SWIFT_FILES := Package.swift Sources Tests
 OBJC_FILES := $(wildcard Sources/SkyLightBridge/*.m Sources/SkyLightBridge/include/*.h)
+
+build:
+	./scripts/build-app.sh
 
 format:
 	$(SWIFT) format format --configuration .swift-format --in-place --recursive $(SWIFT_FILES)

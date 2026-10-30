@@ -16,7 +16,7 @@ Flick is distributed as source and requires Swift 6 / Xcode 16+ to build. It can
 1. Clone or download this repository, then run from its directory:
 
    ```sh
-   ./scripts/build-app.sh
+   make
    ```
 
 2. Quit any running Flick instance. Copy `build/Flick.app` to `/Applications` (or `~/Applications`) **before** granting permission or enabling launch at login, then open the installed copy.
@@ -51,7 +51,7 @@ Bracket shortcuts use physical US-layout bracket key positions. Custom shortcuts
 
 ```sh
 ./scripts/test.sh
-./scripts/build-app.sh
+make
 build/Flick.app/Contents/MacOS/Flick --diagnose
 build/Flick.app/Contents/MacOS/Flick --smoke-test
 ```
