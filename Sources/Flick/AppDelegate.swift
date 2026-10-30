@@ -15,13 +15,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         accessibilityDescription: "Space operation in progress"
     )
     private let menu = NSMenu()
-    private let hotkeys = HotKeys()
+    private let moveHotkeys = HotKeys()
     private let switchHotkeys = HotKeys(signature: 0x464C_5357)
     private let mover = WindowMover()
     private let switcher = SpaceSwitcher()
     private var operationTask: Task<Void, Never>?
     private var lastResult = "Ready."
-    private var registrationError: String?
+    private var moveRegistrationError: String?
     private var switchRegistrationError: String?
     private let shortcuts = ShortcutPreferences()
 
@@ -33,7 +33,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.delegate = self
         let smokeTest = CommandLine.arguments.contains("--smoke-test")
         if !smokeTest {
-            hotkeys.onPress = { [weak self] direction in self?.perform(direction, switching: false)
+            moveHotkeys.onPress = { [weak self] direction in
+                self?.perform(direction, switching: false)
             }
             switchHotkeys.onPress = { [weak self] direction in
                 self?.perform(direction, switching: true)
@@ -49,12 +50,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func registerShortcuts() {
+        registerMoveShortcuts()
         registerSwitchShortcuts()
+    }
+
+    private func registerMoveShortcuts() {
         do {
-            try hotkeys.register(shortcuts.movePreset, action: .moveWindow)
-            registrationError = nil
+            try moveHotkeys.register(shortcuts.movePreset, action: .moveWindow)
+            moveRegistrationError = nil
         } catch {
-            registrationError = error.localizedDescription
+            moveRegistrationError = error.localizedDescription
             lastResult = error.localizedDescription
         }
     }
@@ -145,7 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !shortcutOverlaps().isEmpty {
             add("⚠ Possible system shortcut overlap…", action: #selector(showConflicts))
         }
-        if registrationError != nil {
+        if moveRegistrationError != nil {
             add("⚠ Move shortcuts could not be registered…", action: #selector(showShortcutErrors))
         }
         menu.addItem(.separator())
@@ -194,10 +199,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func changeMovePreset(_ item: NSMenuItem) {
         let old = shortcuts.movePreset
         shortcuts.movePreset = ShortcutPreset.allCases[item.tag]
-        registerShortcuts()
-        if let error = registrationError {
+        registerMoveShortcuts()
+        if let error = moveRegistrationError {
             shortcuts.movePreset = old
-            registerShortcuts()
+            registerMoveShortcuts()
             lastResult = error
             showLastResult()
         }
@@ -226,7 +231,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func showShortcutErrors() {
         alert(
             "Shortcut registration",
-            [registrationError, switchRegistrationError].compactMap { $0 }.joined(separator: "\n\n")
+            [moveRegistrationError, switchRegistrationError].compactMap { $0 }
+                .joined(separator: "\n\n")
         )
     }
 
@@ -314,7 +320,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        hotkeys.stop()
+        moveHotkeys.stop()
         switchHotkeys.stop()
     }
 }
