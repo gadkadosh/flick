@@ -2,9 +2,9 @@ import Testing
 
 @testable import FlickCore
 
-struct WindowMoveBurstTests {
-    @Test func requestsAreAcceptedOnlyDuringTheCapturedWindowSequence() {
-        var burst = WindowMoveBurst()
+struct DirectionBurstTests {
+    @Test func requestsAreAcceptedOnlyDuringTheSequence() {
+        var burst = DirectionBurst()
         let beforeBegin = burst.enqueue(.next)
         burst.begin()
         let duringMove = burst.enqueue(.next)
@@ -18,7 +18,7 @@ struct WindowMoveBurstTests {
     }
 
     @Test func rapidPressesKeepFIFOOrderIncludingOppositeDirection() {
-        var burst = WindowMoveBurst()
+        var burst = DirectionBurst()
         burst.begin()
         let accepted = [burst.enqueue(.next), burst.enqueue(.next), burst.enqueue(.previous)]
         let consumed = [burst.takeNext(), burst.takeNext(), burst.takeNext(), burst.takeNext()]
@@ -27,19 +27,19 @@ struct WindowMoveBurstTests {
     }
 
     @Test func queueIsBoundedAndFreesCapacityAsStepsStart() {
-        var burst = WindowMoveBurst()
+        var burst = DirectionBurst()
         burst.begin()
-        let accepted = (0..<(WindowMoveBurst.maximumPending + 2)).map { _ in burst.enqueue(.next) }
-        #expect(accepted.filter { $0 }.count == WindowMoveBurst.maximumPending)
-        #expect(burst.pendingCount == WindowMoveBurst.maximumPending)
+        let accepted = (0..<(DirectionBurst.maximumPending + 2)).map { _ in burst.enqueue(.next) }
+        #expect(accepted.filter { $0 }.count == DirectionBurst.maximumPending)
+        #expect(burst.pendingCount == DirectionBurst.maximumPending)
         _ = burst.takeNext()
         let acceptedAfterConsumption = burst.enqueue(.previous)
         #expect(acceptedAfterConsumption)
-        #expect(burst.pendingCount == WindowMoveBurst.maximumPending)
+        #expect(burst.pendingCount == DirectionBurst.maximumPending)
     }
 
     @Test func closingDiscardsAllRemainingRequests() {
-        var burst = WindowMoveBurst()
+        var burst = DirectionBurst()
         burst.begin()
         _ = burst.enqueue(.next)
         _ = burst.enqueue(.previous)
@@ -51,8 +51,8 @@ struct WindowMoveBurstTests {
         #expect(!acceptedAfterClose)
     }
 
-    @Test func newWindowBurstDoesNotInheritPreviousRequests() {
-        var burst = WindowMoveBurst()
+    @Test func newBurstDoesNotInheritPreviousRequests() {
+        var burst = DirectionBurst()
         burst.begin()
         _ = burst.enqueue(.next)
         burst.close()

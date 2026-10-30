@@ -3,41 +3,10 @@ import ApplicationServices
 import FlickCore
 import SkyLightBridge
 
-/// The sole adapter for undocumented Space operations. Success means dispatch;
-/// SpaceMove reads back membership and the active desktop before reporting it.
-@MainActor
-private struct SkyLight: SpaceBackend {
-    func displays() throws -> [SpaceDisplay] {
-        guard let raw = FlickCopyDisplays() as? [[String: Any]] else {
-            throw SpaceMoveError.invalidLayout
-        }
-        return try SpaceDisplay.read(raw)
-    }
-
-    func spaces(for windowID: UInt32) throws -> [UInt64] {
-        guard let raw = FlickCopyWindowSpaces(windowID) as? [NSNumber] else {
-            throw FlickError.message("Could not read the window's Space membership.")
-        }
-        return raw.map(\.uint64Value)
-    }
-
-    func move(windowID: UInt32, to spaceID: UInt64) throws {
-        guard FlickMoveWindow(windowID, spaceID) else {
-            throw FlickError.message("macOS rejected the direct window move.")
-        }
-    }
-
-    func activate(spaceID: UInt64, on displayID: String) throws {
-        guard FlickActivateSpace(displayID as CFString, spaceID) else {
-            throw FlickError.message("The window moved, but macOS rejected following it.")
-        }
-    }
-}
-
 @MainActor
 final class WindowMover {
     private(set) var busy = false
-    private var burst = WindowMoveBurst()
+    private var burst = DirectionBurst()
     var pendingMoves: Int { burst.pendingCount }
 
     struct Target {

@@ -1,6 +1,6 @@
-/// One burst belongs to a single captured window. Requests are never replayed
-/// against whichever unrelated window becomes focused during a move.
-public struct WindowMoveBurst {
+/// A bounded sequence of directions. The caller retains one window or display
+/// for the entire sequence and closes it on completion or failure.
+public struct DirectionBurst {
     public static let maximumPending = 8
     private var pending: [Direction] = []
     public private(set) var accepting = false

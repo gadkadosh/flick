@@ -1,10 +1,13 @@
+import FlickCore
 import Foundation
 
 func symbolicHotkeys() -> [String: Any] {
-    // Reload at every move: changing System Settings must not require restarting Flick.
+    // Reload on registration/menu open; settings changes need no app restart.
     CFPreferencesAppSynchronize("com.apple.symbolichotkeys" as CFString)
-    return CFPreferencesCopyAppValue(
-        "AppleSymbolicHotKeys" as CFString,
-        "com.apple.symbolichotkeys" as CFString
-    ) as? [String: Any] ?? [:]
+    let configured =
+        CFPreferencesCopyAppValue(
+            "AppleSymbolicHotKeys" as CFString,
+            "com.apple.symbolichotkeys" as CFString
+        ) as? [String: Any] ?? [:]
+    return resolvingDefaultSpaceShortcuts(in: configured)
 }

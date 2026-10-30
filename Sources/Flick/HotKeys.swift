@@ -7,9 +7,11 @@ final class HotKeys {
     private var refs: [EventHotKeyRef] = []
     private var handler: EventHandlerRef?
     private var presses = HotKeyPressTracker()
-    var onMove: ((Direction) -> Void)?
+    var onPress: ((Direction) -> Void)?
+    private let signature: OSType
 
-    init() {
+    init(signature: OSType = 0x464C_494B) {
+        self.signature = signature
         var types = [
             EventTypeSpec(
                 eventClass: OSType(kEventClassKeyboard),
@@ -34,16 +36,16 @@ final class HotKeys {
                     nil,
                     &id
                 )
-                guard result == noErr, id.signature == 0x464C_494B else {
+                let owner = Unmanaged<HotKeys>.fromOpaque(context).takeUnretainedValue()
+                guard result == noErr, id.signature == owner.signature else {
                     return OSStatus(eventNotHandledErr)
                 }
-                let owner = Unmanaged<HotKeys>.fromOpaque(context).takeUnretainedValue()
                 // Carbon invokes this handler on the main application event loop.
                 MainActor.assumeIsolated {
                     if GetEventKind(event) == UInt32(kEventHotKeyReleased) {
                         owner.presses.release(id.id)
                     } else if owner.presses.press(id.id) {
-                        owner.onMove?(id.id == 1 ? .previous : .next)
+                        owner.onPress?(id.id == 1 ? .previous : .next)
                     }
                 }
                 return noErr
@@ -56,17 +58,28 @@ final class HotKeys {
     }
 
     func register(_ preset: MoveShortcutPreset) throws {
+        try register(Direction.allCases.map { (preset.shortcut(for: $0), preset.label(for: $0)) })
+    }
+
+    func registerSpaceSwitches() throws {
+        try register([
+            (SpaceShortcut.switchShortcut(for: .previous), "⌃←"),
+            (SpaceShortcut.switchShortcut(for: .next), "⌃→"),
+        ])
+    }
+
+    private func register(_ shortcuts: [(SpaceShortcut, String)]) throws {
         unregister()
         guard handler != nil else {
             throw FlickError.message("Could not install the macOS hotkey event handler.")
         }
-        for (index, direction) in Direction.allCases.enumerated() {
+        for (index, binding) in shortcuts.enumerated() {
             var ref: EventHotKeyRef?
-            let shortcut = preset.shortcut(for: direction)
+            let (shortcut, label) = binding
             let status = RegisterEventHotKey(
                 UInt32(shortcut.keyCode),
                 shortcut.carbonModifiers,
-                EventHotKeyID(signature: 0x464C_494B, id: UInt32(index + 1)),
+                EventHotKeyID(signature: signature, id: UInt32(index + 1)),
                 GetApplicationEventTarget(),
                 0,
                 &ref
@@ -74,7 +87,7 @@ final class HotKeys {
             guard status == noErr, let ref else {
                 unregister()
                 throw FlickError.message(
-                    "Could not register \(preset.label(for: direction)) (macOS error \(status)). Choose another shortcut preset in Flick's menu."
+                    "Could not register \(label) (macOS error \(status)). Check for shortcut conflicts in Flick and System Settings."
                 )
             }
             refs.append(ref)

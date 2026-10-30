@@ -12,15 +12,24 @@
 
 @protocol FlickActivateOperation
 - (instancetype)initWithDisplayIdentifier:(NSString *)display spaceID:(uint64_t)space;
-- (id)performWithWMBridgeDelegate;
+- (void)performWithWMBridgeDelegate;
+@end
+
+@protocol FlickVisibilityOperation
+- (instancetype)initWithSpaces:(NSArray<NSNumber *> *)spaces;
+- (void)performWithWMBridgeDelegate;
 @end
 
 static int (*mainConnection)(void);
 static CFArrayRef (*copyDisplays)(int);
+static CFStringRef (*copyActiveDisplay)(int);
 static CFArrayRef (*copyWindowSpaces)(int, int, CFArrayRef);
+static CFArrayRef (*copySpaces)(int, int);
 static AXError (*getWindowID)(AXUIElementRef, CGWindowID *);
 static Class moveClass;
 static Class activateClass;
+static Class showClass;
+static Class hideClass;
 
 bool FlickSkyLightAvailable(void) {
     static dispatch_once_t once;
@@ -31,27 +40,46 @@ bool FlickSkyLightAvailable(void) {
             return;
         mainConnection = dlsym(library, "SLSMainConnectionID");
         copyDisplays = dlsym(library, "SLSCopyManagedDisplaySpaces");
+        copyActiveDisplay = dlsym(library, "SLSCopyActiveMenuBarDisplayIdentifier");
         copyWindowSpaces = dlsym(library, "SLSCopySpacesForWindows");
+        copySpaces = dlsym(library, "SLSCopySpaces");
         getWindowID = dlsym(RTLD_DEFAULT, "_AXUIElementGetWindow");
         moveClass = NSClassFromString(@"SLSBridgedMoveWindowsToManagedSpaceOperation");
         activateClass = NSClassFromString(@"SLSBridgedManagedDisplaySetCurrentSpaceOperation");
+        showClass = NSClassFromString(@"SLSBridgedShowSpacesOperation");
+        hideClass = NSClassFromString(@"SLSBridgedHideSpacesOperation");
     });
-    return mainConnection && copyDisplays && copyWindowSpaces && getWindowID &&
+    return mainConnection && copyDisplays && copyWindowSpaces && copySpaces && getWindowID &&
            [moveClass instancesRespondToSelector:@selector(initWithWindows:spaceID:)] &&
            [moveClass instancesRespondToSelector:@selector(performWithWMBridgeDelegate)] &&
            [activateClass instancesRespondToSelector:@selector(initWithDisplayIdentifier:
                                                                                  spaceID:)] &&
-           [activateClass instancesRespondToSelector:@selector(performWithWMBridgeDelegate)];
+           [activateClass instancesRespondToSelector:@selector(performWithWMBridgeDelegate)] &&
+           [showClass instancesRespondToSelector:@selector(initWithSpaces:)] &&
+           [showClass instancesRespondToSelector:@selector(performWithWMBridgeDelegate)] &&
+           [hideClass instancesRespondToSelector:@selector(initWithSpaces:)] &&
+           [hideClass instancesRespondToSelector:@selector(performWithWMBridgeDelegate)];
 }
 
 CFArrayRef FlickCopyDisplays(void) {
     return FlickSkyLightAvailable() ? copyDisplays(mainConnection()) : NULL;
 }
 
+CFStringRef FlickCopyActiveDisplay(void) {
+    if (!FlickSkyLightAvailable() || !copyActiveDisplay)
+        return NULL;
+    return copyActiveDisplay(mainConnection());
+}
+
 CFArrayRef FlickCopyWindowSpaces(CGWindowID window) {
     if (!FlickSkyLightAvailable())
         return NULL;
     return copyWindowSpaces(mainConnection(), 0x7, (__bridge CFArrayRef) @[ @(window) ]);
+}
+
+CFArrayRef FlickCopyVisibleSpaces(void) {
+    // 0x5 selects visible Spaces, including those owned by other connections.
+    return FlickSkyLightAvailable() ? copySpaces(mainConnection(), 0x5) : NULL;
 }
 
 CGWindowID FlickWindowID(AXUIElementRef window) {
@@ -77,15 +105,23 @@ bool FlickMoveWindow(CGWindowID window, uint64_t space) {
     }
 }
 
-bool FlickActivateSpace(CFStringRef display, uint64_t space) {
+bool FlickActivateSpace(CFStringRef display, uint64_t space, CFArrayRef spacesToHide) {
     if (!FlickSkyLightAvailable())
         return false;
     @try {
+        id<FlickVisibilityOperation> show =
+            [(id<FlickVisibilityOperation>)[showClass alloc] initWithSpaces:@[ @(space) ]];
+        id<FlickVisibilityOperation> hide = [(id<FlickVisibilityOperation>)[hideClass alloc]
+            initWithSpaces:(__bridge NSArray *)spacesToHide];
         id<FlickActivateOperation> operation = [(id<FlickActivateOperation>)[activateClass alloc]
             initWithDisplayIdentifier:(__bridge NSString *)display
                               spaceID:space];
-        if (!operation)
+        if (!show || !hide || !operation)
             return false;
+        // Setting the current ID alone leaves other desktops (and their menu
+        // bars) visible. Normalize this display before publishing its current ID.
+        [show performWithWMBridgeDelegate];
+        [hide performWithWMBridgeDelegate];
         [operation performWithWMBridgeDelegate];
         return true;
     } @catch (NSException *exception) {

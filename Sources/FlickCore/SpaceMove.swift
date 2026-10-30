@@ -8,23 +8,17 @@ public protocol SpaceBackend {
     func spaces(for windowID: UInt32) throws -> [UInt64]
     func move(windowID: UInt32, to spaceID: UInt64) throws
     func activate(spaceID: UInt64, on displayID: String) throws
+    func visibleSpaces() throws -> [UInt64]
 }
 
 @MainActor
 public struct SpaceMove {
     private let backend: any SpaceBackend
-    private let pause: () async -> Void
+    private let confirmation: SpaceConfirmation
 
     public init(backend: any SpaceBackend, pause: (() async -> Void)? = nil) {
         self.backend = backend
-        self.pause =
-            pause ?? {
-                await withCheckedContinuation { continuation in
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.002) {
-                        continuation.resume()
-                    }
-                }
-            }
+        confirmation = SpaceConfirmation(pause: pause)
     }
 
     @discardableResult
@@ -39,30 +33,25 @@ public struct SpaceMove {
 
         // These operations can return successfully without applying anything.
         // Confirm exact membership before following, never just visibility.
-        guard try await waitUntil({ try backend.spaces(for: windowID) == [route.destinationID] })
+        guard
+            try await confirmation.waitUntil({
+                try backend.spaces(for: windowID) == [route.destinationID]
+            })
         else {
             throw SpaceMoveError.moveNotConfirmed(route.destinationID)
         }
-        try backend.activate(spaceID: route.destinationID, on: route.displayID)
+        do {
+            try backend.activate(spaceID: route.destinationID, on: route.displayID)
+        } catch {
+            throw SpaceMoveError.followRejected
+        }
         guard
-            try await waitUntil({
-                try backend.displays().first(where: { $0.id == route.displayID })?.currentSpaceID
-                    == route.destinationID
+            try await confirmation.waitUntil({
+                try confirmation.destinationIsVisible(route, using: backend)
             })
         else {
             throw SpaceMoveError.followNotConfirmed(route.destinationID)
         }
         return route
-    }
-
-    /// Once requested, finish the bounded move-and-follow transaction even if
-    /// quitting cancels the task. Cancellation stops the next queued step.
-    private func waitUntil(_ condition: () throws -> Bool) async throws -> Bool {
-        let deadline = ContinuousClock.now.advanced(by: .seconds(1))
-        while true {
-            if try condition() { return true }
-            guard ContinuousClock.now < deadline else { return false }
-            await pause()
-        }
     }
 }
