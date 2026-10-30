@@ -254,9 +254,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let options =
             [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
-        openSettings(
-            "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-        )
     }
     @objc private func openKeyboardSettings() {
         openSettings("x-apple.systempreferences:com.apple.preference.keyboard?Shortcuts")

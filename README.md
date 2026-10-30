@@ -20,7 +20,7 @@ Flick is distributed as source and requires Swift 6 / Xcode 16+ to build. It can
    ```
 
 2. Quit any running Flick instance. Copy `build/Flick.app` to `/Applications` (or `~/Applications`) **before** granting permission or enabling launch at login, then open the installed copy.
-3. For window moves, choose **Grant Accessibility…** in Flick's menu and enable Flick under **System Settings → Privacy & Security → Accessibility**. If needed, use `+` to add the app. Standalone Space switching does not require Accessibility.
+3. For window moves, choose **Grant Accessibility…** in Flick's menu, click **Open System Settings** in the macOS prompt, and enable Flick under **System Settings → Privacy & Security → Accessibility**. If needed, use `+` to add the app. Standalone Space switching does not require Accessibility.
 4. Choose **Switch shortcuts** and **Move shortcuts** in Flick's menu if you prefer another key family. If a shortcut does not fire reliably, disable or reassign matching shortcuts under **System Settings → Keyboard → Keyboard Shortcuts → Mission Control**, then reopen Flick's menu to retry registration.
 
 The build is locally signed for your Mac, not notarized. Keep the app in a stable location; rebuilding may require removing and re-adding its Accessibility entry. To preserve signing across rebuilds, set `FLICK_SIGN_IDENTITY` to an installed signing identity.
