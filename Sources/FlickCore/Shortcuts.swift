@@ -33,10 +33,6 @@ public struct SpaceShortcut: Equatable {
         return carbon
     }
 
-    public static func switchShortcut(for direction: Direction) -> SpaceShortcut {
-        SpaceShortcut(keyCode: direction == .previous ? 123 : 124, flags: 0x40000)
-    }
-
     public static func read(direction: Direction, from hotkeys: [String: Any]) -> SpaceShortcut? {
         guard let entry = hotkeys[direction.symbolicID] as? [String: Any],
             (entry["enabled"] as? NSNumber)?.boolValue == true,
@@ -54,31 +50,47 @@ public struct SpaceShortcut: Equatable {
     }
 }
 
-public enum MoveShortcutPreset: String, CaseIterable {
-    case optionShift, controlOption, controlOptionShift
+public enum SpaceAction: CaseIterable {
+    case switchSpace, moveWindow
+}
 
-    public var modifiersLabel: String {
+/// The same key family switches Spaces, or moves a window with Shift added.
+public enum ShortcutPreset: String, CaseIterable {
+    case controlArrows, optionBrackets, controlOptionBrackets
+
+    public func shortcut(for direction: Direction, action: SpaceAction) -> SpaceShortcut {
+        let code: UInt16
+        let flags: UInt64
         switch self {
-        case .optionShift: return "⌥⇧"
-        case .controlOption: return "⌃⌥"
-        case .controlOptionShift: return "⌃⌥⇧"
+        case .controlArrows:
+            code = direction == .previous ? 123 : 124
+            flags = 0x40000
+        case .optionBrackets:
+            code = direction == .previous ? 33 : 30
+            flags = 0x80000
+        case .controlOptionBrackets:
+            code = direction == .previous ? 33 : 30
+            flags = 0xC0000
         }
+        return SpaceShortcut(keyCode: code, flags: flags | (action == .moveWindow ? 0x20000 : 0))
     }
 
-    public var quartzFlags: UInt64 {
+    public func label(for direction: Direction, action: SpaceAction) -> String {
+        let modifiers: String
         switch self {
-        case .optionShift: return 0xA0000
-        case .controlOption: return 0xC0000
-        case .controlOptionShift: return 0xE0000
+        case .controlArrows: modifiers = "⌃"
+        case .optionBrackets: modifiers = "⌥"
+        case .controlOptionBrackets: modifiers = "⌃⌥"
         }
+        let key =
+            self == .controlArrows
+            ? (direction == .previous ? "←" : "→")
+            : (direction == .previous ? "[" : "]")
+        return modifiers + (action == .moveWindow ? "⇧" : "") + key
     }
 
-    public func shortcut(for direction: Direction) -> SpaceShortcut {
-        SpaceShortcut(keyCode: direction == .previous ? 33 : 30, flags: quartzFlags)
-    }
-
-    public func label(for direction: Direction) -> String {
-        modifiersLabel + (direction == .previous ? "[" : "]")
+    public func label(for action: SpaceAction) -> String {
+        Direction.allCases.map { label(for: $0, action: action) }.joined(separator: " / ")
     }
 }
 
@@ -102,10 +114,17 @@ public func resolvingDefaultSpaceShortcuts(in hotkeys: [String: Any]) -> [String
     return resolved
 }
 
-/// Detect an exact conflict with a system shortcut (including macOS's implicit
-/// Shift variants, IDs 80/82). Never silently change the user's system settings.
-public func systemConflicts(for preset: MoveShortcutPreset, in hotkeys: [String: Any]) -> [String] {
-    systemConflicts(for: Direction.allCases.map { preset.shortcut(for: $0) }, in: hotkeys)
+/// Find configured overlaps, including hidden Shift variants (IDs 80/82).
+/// Preferences do not prove that macOS will intercept these keys at runtime.
+public func systemConflicts(
+    for preset: ShortcutPreset,
+    action: SpaceAction,
+    in hotkeys: [String: Any]
+) -> [String] {
+    systemConflicts(
+        for: Direction.allCases.map { preset.shortcut(for: $0, action: action) },
+        in: hotkeys
+    )
 }
 
 public func systemConflicts(for shortcuts: [SpaceShortcut], in hotkeys: [String: Any]) -> [String] {

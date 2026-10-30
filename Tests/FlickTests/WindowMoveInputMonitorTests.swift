@@ -7,8 +7,8 @@ import Testing
 @MainActor
 struct WindowMoveInputMonitorTests {
     @Test func onlyConfiguredMoveKeysAreAllowedWithModifiersHeld() {
-        for preset in MoveShortcutPreset.allCases {
-            let shortcuts = Direction.allCases.map { preset.shortcut(for: $0) }
+        for preset in ShortcutPreset.allCases {
+            let shortcuts = Direction.allCases.map { preset.shortcut(for: $0, action: .moveWindow) }
             for shortcut in shortcuts {
                 let event = CGEvent(
                     keyboardEventSource: nil,
