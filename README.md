@@ -30,8 +30,6 @@ The app is locally signed, not notarized. Keep it in a stable location; rebuildi
 
 Use the shortcuts above, or choose alternatives under **Switch shortcuts** and **Move shortcuts** in the menu. Bracket shortcuts use physical US-layout bracket key positions.
 
-The menu also offers **Launch at login** and an **Enable Space switching** toggle if you only want window moving. Repeated shortcut presses queue actions; queued moves keep the same window. Clicking or typing cancels remaining queued moves.
-
 If an action fails, check **Last result…** in the menu. If shortcuts do not fire, switch twice, or still animate, choose another preset or disable matching shortcuts under **System Settings → Keyboard → Keyboard Shortcuts → Mission Control**, then reopen Flick's menu. A **Possible system shortcut overlap…** warning alone does not mean anything is broken.
 
 ## Limitations
