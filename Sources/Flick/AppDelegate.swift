@@ -109,58 +109,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func rebuildMenu() {
         menu.removeAllItems()
-        add("Flick · experimental", action: nil)
-        let switchState = shortcuts.switchingEnabled ? "" : " (off)"
-        add(
-            "Switch Spaces: \(shortcuts.switchPreset.label(for: .switchSpace))\(switchState)",
-            action: nil
-        )
-        add("Move window: \(shortcuts.movePreset.label(for: .moveWindow))", action: nil)
+        addShortcutMenu("Switch Spaces", action: .switchSpace)
+        addShortcutMenu("Move Window", action: .moveWindow)
         menu.addItem(.separator())
-        let switching = add("Enable Space switching", action: #selector(toggleSwitching))
-        switching.state = shortcuts.switchingEnabled ? .on : .off
-        switching.isEnabled = operationTask == nil
-        addShortcutMenu("Switch shortcuts", action: .switchSpace)
-        addShortcutMenu("Move shortcuts", action: .moveWindow)
-
-        let login = add("Launch at login", action: #selector(toggleLogin))
+        let login = add("Launch at Login", action: #selector(toggleLogin))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         if SMAppService.mainApp.status == .requiresApproval { login.title += " (approval needed)" }
 
         menu.addItem(.separator())
-        add(
-            AXIsProcessTrusted() ? "Accessibility: allowed" : "Accessibility: permission needed",
-            action: nil
-        )
-        add("Grant Accessibility…", action: #selector(grantAccessibility))
-        add("Mission Control shortcut settings…", action: #selector(openKeyboardSettings))
-        if !shortcutOverlaps().isEmpty {
-            add("⚠ Possible system shortcut overlap…", action: #selector(showConflicts))
+        if !AXIsProcessTrusted() {
+            add("Grant Accessibility…", action: #selector(grantAccessibility))
         }
         if switchRegistrationError != nil {
-            add("⚠ Space-switch shortcuts unavailable…", action: #selector(showShortcutErrors))
+            add("⚠ Switch Shortcuts Unavailable…", action: #selector(showShortcutErrors))
         }
         if moveRegistrationError != nil {
-            add("⚠ Move shortcuts could not be registered…", action: #selector(showShortcutErrors))
+            add("⚠ Move Shortcuts Unavailable…", action: #selector(showShortcutErrors))
         }
-        menu.addItem(.separator())
-        let progress =
-            switcher.busy
-            ? "Switch in progress (\(switcher.pendingSwitches) queued)…"
-            : "Move in progress (\(mover.pendingMoves) queued)…"
-        add(operationTask != nil ? progress : "Last result…", action: #selector(showLastResult))
-        add("About Flick…", action: #selector(showAbout))
-        menu.addItem(.separator())
+        let help = NSMenu()
+        help.autoenablesItems = false
+        add("Last Result…", action: #selector(showLastResult), to: help)
+        if !shortcutOverlaps().isEmpty {
+            add("Possible Shortcut Conflicts…", action: #selector(showConflicts), to: help)
+        }
+        add("Mission Control Settings…", action: #selector(openKeyboardSettings), to: help)
+        help.addItem(.separator())
+        add("About Flick…", action: #selector(showAbout), to: help)
+        let helpItem = add("Help", action: nil)
+        helpItem.submenu = help
+        helpItem.isEnabled = true
         add("Quit Flick", action: #selector(quit), key: "q")
         statusItem.button?.toolTip = lastResult
     }
 
     @discardableResult
-    private func add(_ title: String, action: Selector?, key: String = "") -> NSMenuItem {
+    private func add(
+        _ title: String,
+        action: Selector?,
+        key: String = "",
+        to parent: NSMenu? = nil
+    ) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
         item.target = self
         item.isEnabled = action != nil
-        menu.addItem(item)
+        (parent ?? menu).addItem(item)
         return item
     }
 
@@ -177,11 +169,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
             item.target = self
             item.tag = index
-            item.state = selected == option ? .on : .off
+            let enabled = action == .moveWindow || shortcuts.switchingEnabled
+            item.state = enabled && selected == option ? .on : .off
             item.isEnabled = operationTask == nil
             submenu.addItem(item)
         }
-        let item = add(title, action: nil)
+        if action == .switchSpace {
+            submenu.addItem(.separator())
+            let off = add("Off", action: #selector(disableSwitching), to: submenu)
+            off.state = shortcuts.switchingEnabled ? .off : .on
+            off.isEnabled = operationTask == nil
+        }
+        let switchLabel =
+            shortcuts.switchingEnabled ? shortcuts.switchPreset.label(for: .switchSpace) : "Off"
+        let moveLabel = shortcuts.movePreset.label(for: .moveWindow)
+        let label = action == .switchSpace ? switchLabel : moveLabel
+        let item = add("\(title)\t\(label)", action: nil)
+        // Align the summaries without assigning a second set of keyboard shortcuts.
+        let font = NSFont.menuFont(ofSize: 0)
+        let attributes: [NSAttributedString.Key: Any] = [.font: font]
+        let titleWidth = ("Switch Spaces" as NSString).size(withAttributes: attributes).width
+        let labelWidth = max(
+            (switchLabel as NSString).size(withAttributes: attributes).width,
+            (moveLabel as NSString).size(withAttributes: attributes).width
+        )
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.tabStops = [
+            NSTextTab(textAlignment: .right, location: ceil(titleWidth + 24 + labelWidth))
+        ]
+        item.attributedTitle = NSAttributedString(
+            string: item.title,
+            attributes: [.font: font, .paragraphStyle: paragraph]
+        )
         item.submenu = submenu
         item.isEnabled = operationTask == nil
     }
@@ -201,10 +220,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func changeSwitchPreset(_ item: NSMenuItem) {
         let old = shortcuts.switchPreset
+        let wasEnabled = shortcuts.switchingEnabled
         shortcuts.switchPreset = ShortcutPreset.allCases[item.tag]
+        shortcuts.switchingEnabled = true
         registerSwitchShortcuts()
         if let error = switchRegistrationError {
             shortcuts.switchPreset = old
+            shortcuts.switchingEnabled = wasEnabled
             registerSwitchShortcuts()
             lastResult = error
             showLastResult()
@@ -212,8 +234,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         rebuildMenu()
     }
 
-    @objc private func toggleSwitching() {
-        shortcuts.switchingEnabled.toggle()
+    @objc private func disableSwitching() {
+        shortcuts.switchingEnabled = false
         registerSwitchShortcuts()
         rebuildMenu()
     }
@@ -283,7 +305,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func showAbout() {
         alert(
             "Flick",
-            "Switches adjacent desktop Spaces without a slide animation, or moves ordinary windows and follows them. The cursor, window size, and position are left alone.\n\nWindow moves require Accessibility. Both features require compatible undocumented macOS Space APIs. SIP stays enabled. macOS updates may break compatibility; Flick reports unconfirmed moves instead of falling back to dragging. Fullscreen, Stage Manager, and multi-monitor behavior are not yet validated.\n\nBracket shortcuts use physical US-layout bracket keys."
+            "Switch Spaces, or move a window and follow it, without animation.\n\nExperimental: uses undocumented macOS APIs. macOS updates may break compatibility. Window moves require Accessibility.\n\nBracket shortcuts use physical US-layout bracket keys."
         )
     }
     private func alert(_ title: String, _ message: String) {
