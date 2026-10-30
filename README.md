@@ -24,11 +24,11 @@ Requires Swift 6 / Xcode 16+. The app targets macOS 13+, but older releases have
 2. Copy `build/Flick.app` to `/Applications` (or `~/Applications`), then open the installed copy. Do this **before** granting permission or enabling launch at login.
 3. To move windows, choose **Grant Accessibility…** in Flick's menu, click **Open System Settings** in the macOS prompt, and enable Flick under **Privacy & Security → Accessibility**. Use `+` to add the app if needed. Switching desktops alone does not need this permission.
 
-The app is locally signed, not notarized. Keep it in a stable location; rebuilding may require removing and re-adding its Accessibility entry. Set `FLICK_SIGN_IDENTITY` to an installed signing identity to preserve signing across rebuilds.
+The app is locally signed, not notarized. Keep it in a stable location; rebuilding may require removing and re-adding its Accessibility entry.
 
 ## Use
 
-Use the shortcuts above, or choose alternatives under **Switch shortcuts** and **Move shortcuts** in the menu. Each selection is saved independently. Bracket shortcuts use physical US-layout bracket key positions.
+Use the shortcuts above, or choose alternatives under **Switch shortcuts** and **Move shortcuts** in the menu. Bracket shortcuts use physical US-layout bracket key positions.
 
 The menu also offers **Launch at login** and an **Enable Space switching** toggle if you only want window moving. Repeated shortcut presses queue actions; queued moves keep the same window. Clicking or typing cancels remaining queued moves.
 
