@@ -21,7 +21,7 @@ Requires Swift 6 / Xcode 16+. The app targets macOS 13+, but older releases have
    make
    ```
 
-2. Quit any running Flick instance. Copy `build/Flick.app` to `/Applications` (or `~/Applications`), then open the installed copy. Do this **before** granting permission or enabling launch at login.
+2. Copy `build/Flick.app` to `/Applications` (or `~/Applications`), then open the installed copy. Do this **before** granting permission or enabling launch at login.
 3. To move windows, choose **Grant Accessibility…** in Flick's menu, click **Open System Settings** in the macOS prompt, and enable Flick under **Privacy & Security → Accessibility**. Use `+` to add the app if needed. Switching desktops alone does not need this permission.
 
 The app is locally signed, not notarized. Keep it in a stable location; rebuilding may require removing and re-adding its Accessibility entry. Set `FLICK_SIGN_IDENTITY` to an installed signing identity to preserve signing across rebuilds.
