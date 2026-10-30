@@ -6,14 +6,7 @@ import ServiceManagement
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem!
-    private let idleImage = NSImage(
-        systemSymbolName: "arrow.left.arrow.right",
-        accessibilityDescription: "Flick"
-    )
-    private let busyImage = NSImage(
-        systemSymbolName: "hourglass",
-        accessibilityDescription: "Space operation in progress"
-    )
+    private var spaceIndicator: CurrentSpaceIndicator?
     private let menu = NSMenu()
     private let moveHotkeys = HotKeys()
     private let switchHotkeys = HotKeys(signature: 0x464C_5357)
@@ -26,8 +19,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let shortcuts = ShortcutPreferences()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = idleImage
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
+        if let button = statusItem.button {
+            spaceIndicator = CurrentSpaceIndicator(button: button)
+            spaceIndicator?.start()
+        }
         statusItem.menu = menu
         menu.autoenablesItems = false
         menu.delegate = self
@@ -90,7 +86,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
-        statusItem.button?.image = busyImage
         operationTask = Task { [weak self] in
             guard let self else { return }
             do {
@@ -105,7 +100,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 lastResult = error.localizedDescription
                 NSSound.beep()
             }
-            statusItem.button?.image = idleImage
+            spaceIndicator?.refresh()
             statusItem.button?.toolTip = lastResult
             operationTask = nil
             rebuildMenu()
@@ -312,6 +307,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        spaceIndicator?.stop()
         moveHotkeys.stop()
         switchHotkeys.stop()
     }
