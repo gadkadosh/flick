@@ -132,8 +132,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !shortcutOverlaps().isEmpty {
             add("Possible Shortcut Conflicts…", action: #selector(showConflicts), to: help)
         }
-        add("Keyboard Shortcuts…", action: #selector(openKeyboardSettings), to: help).toolTip =
-            "Select Mission Control in the sidebar."
+        add("Keyboard Settings…", action: #selector(openKeyboardSettings), to: help).toolTip =
+            "Open Keyboard Shortcuts, then select Mission Control in the sidebar."
         help.addItem(.separator())
         add("About Flick…", action: #selector(showAbout), to: help)
         let helpItem = add("Help", action: nil)
@@ -274,7 +274,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         _ = AXIsProcessTrustedWithOptions(options)
     }
     @objc private func openKeyboardSettings() {
-        openSettings("x-apple.systempreferences:com.apple.preference.keyboard?Shortcuts")
+        openSettings("x-apple.systempreferences:com.apple.preference.keyboard")
     }
     private func openSettings(_ url: String) {
         if let url = URL(string: url) { NSWorkspace.shared.open(url) }
