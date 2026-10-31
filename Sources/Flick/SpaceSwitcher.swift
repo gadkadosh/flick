@@ -1,5 +1,5 @@
-import AppKit
 import FlickCore
+import Foundation
 import SkyLightBridge
 
 @MainActor
@@ -25,9 +25,6 @@ final class SpaceSwitcher {
     private func checkSwitchingAvailable() throws {
         guard FlickSkyLightAvailable() else {
             throw FlickError.message("Direct Space switching is unavailable on this macOS version.")
-        }
-        guard NSEvent.pressedMouseButtons == 0 else {
-            throw FlickError.message("Release the mouse buttons before switching Spaces.")
         }
     }
 

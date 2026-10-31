@@ -9,7 +9,7 @@ Switch macOS Spaces without animation. A small menu-bar app for switching deskto
 
 No external dependencies, screen capture, SIP changes, telemetry, or network access.
 
-**Experimental:** Flick uses undocumented macOS APIs. Switching and window moves have only been validated on one display on macOS 27.0.1 with SIP enabled. macOS updates may break compatibility.
+**Experimental:** Flick uses undocumented macOS APIs. Switching and window moves have been validated on one physical display on macOS 27.0.1 with SIP enabled. macOS updates may break compatibility.
 
 ## Build and install
 
@@ -34,8 +34,7 @@ If shortcuts don’t work or still animate, choose another shortcut preset or op
 ## Limitations
 
 - Cannot move fullscreen/Split View windows, dialogs, or windows assigned to multiple or all Spaces.
-- Window moves use the window's display; previous/next switching uses the active menu-bar display, not the pointer. Numbered jumps use the display containing that desktop. Multiple displays, shared Spaces, and Stage Manager are not yet validated.
-- Switching and moving cannot run together. Window moves cannot start during a mouse drag or while Secure Keyboard Entry blocks keyboard observation.
+- Window moves use the window's display; previous/next switching uses the active menu-bar display, not the pointer. Numbered jumps use the display containing that desktop. Physical multi-display setups, shared Spaces, and Stage Manager are not yet validated.
 
 Flick reports failures rather than falling back to simulated dragging. If a window moves but Flick cannot follow it, it does not automatically move the window back.
 
