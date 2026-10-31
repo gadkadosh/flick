@@ -24,6 +24,25 @@ struct ShortcutPreferencesTests {
         }
     }
 
+    @Test func numberedJumpDefaultsToOffAndPersistsIndependently() {
+        withPreferences { preferences in
+            #expect(preferences.jumpPreset == .off)
+            preferences.defaults.set("unknown", forKey: "jumpShortcutPreset")
+            #expect(preferences.jumpPreset == .off)
+            preferences.movePreset = .controlArrows
+            preferences.switchPreset = .controlOptionBrackets
+            preferences.switchingEnabled = false
+            for preset in JumpShortcutPreset.allCases {
+                preferences.jumpPreset = preset
+                let reloaded = ShortcutPreferences(defaults: preferences.defaults)
+                #expect(reloaded.jumpPreset == preset)
+                #expect(reloaded.movePreset == .controlArrows)
+                #expect(reloaded.switchPreset == .controlOptionBrackets)
+                #expect(!reloaded.switchingEnabled)
+            }
+        }
+    }
+
     @Test func selectionsPersistIndependentlyAndPreserveDisabledSwitching() {
         withPreferences { preferences in
             for move in ShortcutPreset.allCases {
