@@ -132,7 +132,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !shortcutOverlaps().isEmpty {
             add("Possible Shortcut Conflicts…", action: #selector(showConflicts), to: help)
         }
-        add("Mission Control Settings…", action: #selector(openKeyboardSettings), to: help)
+        add("Keyboard Shortcuts…", action: #selector(openKeyboardSettings), to: help).toolTip =
+            "Select Mission Control in the sidebar."
         help.addItem(.separator())
         add("About Flick…", action: #selector(showAbout), to: help)
         let helpItem = add("Help", action: nil)
@@ -299,7 +300,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func showConflicts() {
         alert(
             "Possible system shortcut overlap",
-            "\(shortcutOverlaps().joined(separator: "\n"))\n\nmacOS lists these keys in its preferences, including hidden Shift variants of Mission Control shortcuts that are not shown separately in System Settings. This does not prove macOS will intercept them. If Flick works reliably, no action is needed.\n\nIf keys do not fire, switch twice, or show an animation, choose another Flick preset or disable/reassign the matching Mission Control shortcuts in System Settings. Reopen Flick's menu to retry registration. Flick does not change your system settings."
+            "\(shortcutOverlaps().joined(separator: "\n"))\n\nmacOS lists these keys in its preferences, including hidden Shift variants of Mission Control shortcuts that are not shown separately in System Settings. This does not prove macOS will intercept them. If Flick works reliably, no action is needed.\n\nIf keys do not fire, switch twice, or show an animation, choose another Flick preset or disable/reassign the matching shortcuts in System Settings → Keyboard → Keyboard Shortcuts → Mission Control. Reopen Flick's menu to retry registration. Flick does not change your system settings."
         )
     }
     @objc private func showAbout() {
