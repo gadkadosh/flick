@@ -13,6 +13,24 @@ final class SpaceSwitcher {
         return burst.enqueue(direction)
     }
 
+    func jumpToDesktop(_ number: Int) async throws -> String {
+        guard !busy else { throw FlickError.message("A desktop switch is already in progress.") }
+        busy = true
+        defer { busy = false }
+        try checkSwitchingAvailable()
+        try await SpaceSwitch(backend: SkyLight()).jumpToDesktop(number)
+        return "Desktop \(number) visible; destination confirmed. No windows moved."
+    }
+
+    private func checkSwitchingAvailable() throws {
+        guard FlickSkyLightAvailable() else {
+            throw FlickError.message("Direct Space switching is unavailable on this macOS version.")
+        }
+        guard NSEvent.pressedMouseButtons == 0 else {
+            throw FlickError.message("Release the mouse buttons before switching Spaces.")
+        }
+    }
+
     func switchSpace(_ direction: Direction) async throws -> String {
         guard !busy else { throw FlickError.message("A desktop switch is already in progress.") }
         busy = true
@@ -20,12 +38,7 @@ final class SpaceSwitcher {
             burst.close()
             busy = false
         }
-        guard FlickSkyLightAvailable() else {
-            throw FlickError.message("Direct Space switching is unavailable on this macOS version.")
-        }
-        guard NSEvent.pressedMouseButtons == 0 else {
-            throw FlickError.message("Release the mouse buttons before switching Spaces.")
-        }
+        try checkSwitchingAvailable()
         let backend = SkyLight()
         let displayID = try backend.activeDisplayID()
         let switcher = SpaceSwitch(backend: backend)

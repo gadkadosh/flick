@@ -73,6 +73,24 @@ public struct SpaceRoute: Equatable {
         try self.init(display: display, direction: direction)
     }
 
+    /// Use Mission Control's numbering: ordinary desktops across all displays.
+    public init(displays: [SpaceDisplay], desktopNumber: Int) throws {
+        let desktops = displays.flatMap { display in
+            display.spaces.filter(\.isDesktop).map { (display: display, space: $0) }
+        }
+        guard desktopNumber > 0, desktopNumber <= desktops.count else {
+            throw SpaceMoveError.desktopNotFound(desktopNumber)
+        }
+        let (display, destination) = desktops[desktopNumber - 1]
+        guard let source = display.spaces.first(where: { $0.id == display.currentSpaceID }) else {
+            throw SpaceMoveError.invalidLayout
+        }
+        guard source.isDesktop else { throw SpaceMoveError.unsupportedSpace }
+        displayID = display.id
+        sourceID = source.id
+        destinationID = destination.id
+    }
+
     public init(display: SpaceDisplay, direction: Direction) throws {
         guard let index = display.spaces.firstIndex(where: { $0.id == display.currentSpaceID })
         else {
@@ -96,6 +114,7 @@ public enum SpaceMoveError: Error, Equatable, LocalizedError {
     case windowNotOnCurrentSpace
     case unsupportedSpace
     case boundary(Direction)
+    case desktopNotFound(Int)
     case moveNotConfirmed(UInt64)
     case followNotConfirmed(UInt64)
     case followRejected
@@ -111,7 +130,9 @@ public enum SpaceMoveError: Error, Equatable, LocalizedError {
             return "The window is no longer on the current Space. Try again after focusing it."
         case .unsupportedSpace:
             return
-                "Only adjacent ordinary desktop Spaces are supported. Flick does not skip fullscreen or Split View Spaces."
+                "This operation requires ordinary desktop Spaces. Previous/next actions do not skip fullscreen or Split View Spaces."
+        case .desktopNotFound(let number):
+            return "There is no Desktop \(number). Flick does not create desktops."
         case .boundary(let direction):
             return "There is no \(direction.label) desktop Space on this display."
         case .moveNotConfirmed:

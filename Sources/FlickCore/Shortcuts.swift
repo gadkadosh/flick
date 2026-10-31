@@ -94,6 +94,36 @@ public enum ShortcutPreset: String, CaseIterable {
     }
 }
 
+/// Number-row shortcuts use the same physical US-layout positions as bracket presets.
+public enum JumpShortcutPreset: String, CaseIterable {
+    case controlNumbers, optionNumbers, controlOptionNumbers, off
+
+    private var modifiers: String {
+        switch self {
+        case .off: return ""
+        case .controlNumbers: return "⌃"
+        case .optionNumbers: return "⌥"
+        case .controlOptionNumbers: return "⌃⌥"
+        }
+    }
+
+    public var label: String { self == .off ? "Off" : "\(modifiers)1–9" }
+
+    public var bindings: [(shortcut: SpaceShortcut, label: String)] {
+        let flags: UInt64
+        switch self {
+        case .off: return []
+        case .controlNumbers: flags = 0x40000
+        case .optionNumbers: flags = 0x80000
+        case .controlOptionNumbers: flags = 0xC0000
+        }
+        let codes: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
+        return codes.enumerated().map { index, code in
+            (SpaceShortcut(keyCode: code, flags: flags), "\(modifiers)\(index + 1)")
+        }
+    }
+}
+
 /// macOS preferences store overrides, not necessarily every built-in shortcut.
 /// Missing Space-switch entries retain their enabled Control-arrow defaults.
 public func resolvingDefaultSpaceShortcuts(in hotkeys: [String: Any]) -> [String: Any] {

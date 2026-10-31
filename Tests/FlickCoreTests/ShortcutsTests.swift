@@ -146,6 +146,61 @@ struct ShortcutsTests {
         )
     }
 
+    @Test func numberedPresetsMatchPhysicalKeysLabelsAndCarbonModifiers() {
+        #expect(JumpShortcutPreset.off.bindings.isEmpty)
+        #expect(JumpShortcutPreset.off.label == "Off")
+        let expected: [(JumpShortcutPreset, UInt64, UInt32, String)] = [
+            (.controlNumbers, 0x40000, UInt32(controlKey), "⌃"),
+            (.optionNumbers, 0x80000, UInt32(optionKey), "⌥"),
+            (.controlOptionNumbers, 0xC0000, UInt32(controlKey | optionKey), "⌃⌥"),
+        ]
+        let codes: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
+        #expect(JumpShortcutPreset.allCases.count == expected.count + 1)
+        for (preset, flags, carbon, modifiers) in expected {
+            #expect(preset.label == "\(modifiers)1–9")
+            #expect(preset.bindings.map(\.shortcut.keyCode) == codes)
+            for (index, binding) in preset.bindings.enumerated() {
+                #expect(binding.label == "\(modifiers)\(index + 1)")
+                #expect(binding.shortcut.flags == flags)
+                #expect(binding.shortcut.carbonModifiers == carbon)
+                for action in SpaceAction.allCases {
+                    for adjacent in ShortcutPreset.allCases {
+                        for direction in Direction.allCases {
+                            #expect(
+                                binding.shortcut
+                                    != adjacent.shortcut(for: direction, action: action)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test func numberedSystemConflictsIncludeEnabledBindingsOnly() {
+        let settings = [
+            "118": entry(code: 18, flags: 0x40000),
+            "119": entry(enabled: false, code: 19, flags: 0x40000),
+            "120": entry(code: 20, flags: 0x80000),
+        ]
+        #expect(
+            systemConflicts(
+                for: JumpShortcutPreset.controlNumbers.bindings.map(\.shortcut),
+                in: settings
+            ) == ["118"]
+        )
+        #expect(
+            systemConflicts(
+                for: JumpShortcutPreset.optionNumbers.bindings.map(\.shortcut),
+                in: settings
+            ) == ["120"]
+        )
+        #expect(
+            systemConflicts(for: JumpShortcutPreset.off.bindings.map(\.shortcut), in: settings)
+                .isEmpty
+        )
+    }
+
     @Test func eachQuartzModifierConvertsToItsCarbonEquivalent() {
         let expected: [(CGEventFlags, Int)] = [
             (.maskAlphaShift, alphaLock), (.maskShift, shiftKey),
