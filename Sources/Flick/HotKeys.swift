@@ -3,11 +3,21 @@ import Carbon
 import FlickCore
 
 @MainActor
-final class HotKeys {
+protocol HotKeyRegistering: AnyObject {
+    var onPress: ((Int) -> Void)? { get set }
+    func register(_ preset: ShortcutPreset, action: SpaceAction) throws
+    func register(_ preset: JumpShortcutPreset) throws
+    func unregister()
+    func stop()
+}
+
+@MainActor
+final class HotKeys: HotKeyRegistering {
     private var refs: [EventHotKeyRef] = []
     private var handler: EventHandlerRef?
     private var presses = HotKeyPressTracker()
-    var onPress: ((Direction) -> Void)?
+    /// Zero-based index into the registered bindings.
+    var onPress: ((Int) -> Void)?
     private let signature: OSType
 
     init(signature: OSType = 0x464C_494B) {
@@ -37,7 +47,9 @@ final class HotKeys {
                     &id
                 )
                 let owner = Unmanaged<HotKeys>.fromOpaque(context).takeUnretainedValue()
-                guard result == noErr, id.signature == owner.signature else {
+                guard result == noErr, id.signature == owner.signature,
+                    id.id > 0, id.id <= owner.refs.count
+                else {
                     return OSStatus(eventNotHandledErr)
                 }
                 // Carbon invokes this handler on the main application event loop.
@@ -45,7 +57,7 @@ final class HotKeys {
                     if GetEventKind(event) == UInt32(kEventHotKeyReleased) {
                         owner.presses.release(id.id)
                     } else if owner.presses.press(id.id) {
-                        owner.onPress?(id.id == 1 ? .previous : .next)
+                        owner.onPress?(Int(id.id) - 1)
                     }
                 }
                 return noErr
@@ -63,6 +75,10 @@ final class HotKeys {
                 (preset.shortcut(for: $0, action: action), preset.label(for: $0, action: action))
             }
         )
+    }
+
+    func register(_ preset: JumpShortcutPreset) throws {
+        try register(preset.bindings)
     }
 
     private func register(_ shortcuts: [(SpaceShortcut, String)]) throws {

@@ -17,7 +17,20 @@ public struct SpaceSwitch {
             throw SpaceMoveError.invalidLayout
         }
         let route = try SpaceRoute(display: display, direction: direction)
-        try backend.activate(spaceID: route.destinationID, on: route.displayID)
+        return try await activate(route)
+    }
+
+    @discardableResult
+    public func jumpToDesktop(_ number: Int) async throws -> SpaceRoute {
+        try Task.checkCancellation()
+        let route = try SpaceRoute(displays: backend.displays(), desktopNumber: number)
+        return try await activate(route)
+    }
+
+    private func activate(_ route: SpaceRoute) async throws -> SpaceRoute {
+        if route.sourceID != route.destinationID {
+            try backend.activate(spaceID: route.destinationID, on: route.displayID)
+        }
         guard
             try await confirmation.waitUntil({
                 try confirmation.destinationIsVisible(route, using: backend)

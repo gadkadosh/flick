@@ -1,6 +1,6 @@
 # Flick
 
-Switch macOS Spaces without animation. A small menu-bar app with two actions:
+Switch macOS Spaces without animation. A small menu-bar app for switching desktops and moving windows:
 
 | Shortcut | Action |
 | --- | --- |
@@ -23,15 +23,18 @@ The app is locally signed, not notarized. Keep it in a stable location; rebuildi
 
 ## Use
 
-Use the shortcuts above, or choose alternatives under **Switch Spaces** and **Move Window** in the menu. Bracket shortcuts use physical US-layout bracket key positions.
+Use the shortcuts above, or choose alternatives under **Previous / Next Desktop** and **Move Window** in the menu.
+
+**Go to Desktop** optionally enables **⌃1–9**, **⌥1–9**, or **⌃⌥1–9** (off by default). Numbers match Mission Control and Flick’s menu-bar indicator: ordinary desktops are numbered across displays; fullscreen/Split View Spaces are not counted. Jumping goes directly to the selected desktop without moving windows. A missing desktop reports an error; selecting an already-visible desktop does nothing. Jumps cannot start while another Space operation is running.
+
+Bracket and number shortcuts use physical US-layout key positions, not the numeric keypad. Enabling Option+number takes those combinations away from typing symbols in other apps.
 
 If shortcuts don’t work or still animate, choose another shortcut preset or disable conflicting Mission Control shortcuts in System Settings. Check **Help → Last Result…** in Flick’s menu for errors.
 
 ## Limitations
 
-- Works with adjacent ordinary desktops. It does not wrap, create desktops, or skip fullscreen/Split View Spaces.
 - Cannot move fullscreen/Split View windows, dialogs, or windows assigned to multiple or all Spaces.
-- Window moves use the window's display; switching uses the active menu-bar display, not the pointer. Multiple displays, shared Spaces, and Stage Manager are not yet validated.
+- Window moves use the window's display; previous/next switching uses the active menu-bar display, not the pointer. Numbered jumps use the display containing that desktop. Multiple displays, shared Spaces, and Stage Manager are not yet validated.
 - Switching and moving cannot run together. Window moves cannot start during a mouse drag or while Secure Keyboard Entry blocks keyboard observation.
 
 Flick reports failures rather than falling back to simulated dragging. If a window moves but Flick cannot follow it, it does not automatically move the window back.

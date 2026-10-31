@@ -47,6 +47,18 @@ struct FlickMain {
                     }
                 }
             }
+            for preset in JumpShortcutPreset.allCases where preset != .off {
+                let keys = HotKeys()
+                do {
+                    try keys.register(preset)
+                    print("Jump \(preset.label): registration OK")
+                } catch { print(error.localizedDescription) }
+                keys.stop()
+                let conflicts = systemConflicts(for: preset.bindings.map(\.shortcut), in: settings)
+                if !conflicts.isEmpty {
+                    print("  Possible system overlaps: \(conflicts.joined(separator: ", "))")
+                }
+            }
         } else {
             let app = NSApplication.shared
             app.setActivationPolicy(.accessory)
