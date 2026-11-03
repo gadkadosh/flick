@@ -141,7 +141,9 @@ final class WindowSwitcher {
                     drain()
                 }
                 return
-            case .cancel: break  // Handled immediately in receive, including while discovery is suspended.
+            case .cancel:
+                // Handled immediately in receive, including while discovery is suspended.
+                break
             }
         }
     }
