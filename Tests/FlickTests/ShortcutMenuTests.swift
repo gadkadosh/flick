@@ -198,6 +198,25 @@ struct ShortcutMenuTests {
         }
     }
 
+    @Test func windowSwitcherMenuTogglesOnlyItsPersistedPreference() throws {
+        try withHarness { harness in
+            for enabled in [true, false, true] {
+                let item = try #require(
+                    harness.app.rebuildMenu().items.first { $0.title == "Window Switcher (⌥Tab)" }
+                )
+                #expect(item.state == (enabled ? .on : .off))
+                #expect(harness.reloaded.windowSwitchingEnabled == enabled)
+                let action = try #require(item.action)
+                _ = harness.app.perform(action)
+            }
+            #expect(harness.reloaded.movePreset == .optionBrackets)
+            #expect(harness.reloaded.switchingEnabled)
+            #expect(harness.move.attempts.isEmpty)
+            #expect(harness.switching.attempts.isEmpty)
+            #expect(harness.jump.attempts.isEmpty)
+        }
+    }
+
     private func withHarness(_ body: (MenuHarness) throws -> Void) rethrows {
         let suite = "Flick.ShortcutMenuTests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!

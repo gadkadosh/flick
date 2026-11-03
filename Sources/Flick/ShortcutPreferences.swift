@@ -32,6 +32,11 @@ struct ShortcutPreferences {
         nonmutating set { defaults.set(newValue.rawValue, forKey: "jumpShortcutPreset") }
     }
 
+    var windowSwitchingEnabled: Bool {
+        get { defaults.object(forKey: "windowSwitchingEnabled") as? Bool ?? true }
+        nonmutating set { defaults.set(newValue, forKey: "windowSwitchingEnabled") }
+    }
+
     var switchingEnabled: Bool {
         get { defaults.object(forKey: "spaceSwitchingEnabled") as? Bool ?? true }
         nonmutating set { defaults.set(newValue, forKey: "spaceSwitchingEnabled") }
