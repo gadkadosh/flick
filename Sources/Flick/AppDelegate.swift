@@ -48,37 +48,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
         menu.autoenablesItems = false
         menu.delegate = self
-        let smokeTest = CommandLine.arguments.contains("--smoke-test")
-        if !smokeTest {
-            moveHotkeys.onPress = { [weak self] index in
-                self?.perform(Direction.allCases[index], switching: false)
-            }
-            switchHotkeys.onPress = { [weak self] index in
-                self?.perform(Direction.allCases[index], switching: true)
-            }
-            jumpHotkeys.onPress = { [weak self] index in
-                self?.jumpToDesktop(index + 1)
-            }
+        moveHotkeys.onPress = { [weak self] index in
+            self?.perform(Direction.allCases[index], switching: false)
         }
-        if !smokeTest {
-            windowSwitcher = WindowSwitcher(
-                present: { [weak self] in self?.windowPanel.show($0, selected: $1) },
-                dismiss: { [weak self] in self?.windowPanel.hide() },
-                canBegin: { [weak self] in self?.operationTask == nil },
-                report: { [weak self] message in
-                    self?.lastResult = message
-                    self?.statusItem.button?.toolTip = message
-                }
-            )
-            configureWindowSwitcher()
+        switchHotkeys.onPress = { [weak self] index in
+            self?.perform(Direction.allCases[index], switching: true)
         }
+        jumpHotkeys.onPress = { [weak self] index in
+            self?.jumpToDesktop(index + 1)
+        }
+        windowSwitcher = WindowSwitcher(
+            present: { [weak self] in self?.windowPanel.show($0, selected: $1) },
+            dismiss: { [weak self] in self?.windowPanel.hide() },
+            canBegin: { [weak self] in self?.operationTask == nil },
+            report: { [weak self] message in
+                self?.lastResult = message
+                self?.statusItem.button?.toolTip = message
+            }
+        )
+        configureWindowSwitcher()
         registerShortcuts()
         rebuildMenu()
-        if smokeTest {
-            print("Flick startup smoke test: menu created; Space actions disabled.")
-            print(menu.items.filter { !$0.isSeparatorItem }.map(\.title).joined(separator: "\n"))
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { NSApp.terminate(nil) }
-        }
     }
 
     private func configureWindowSwitcher() {
