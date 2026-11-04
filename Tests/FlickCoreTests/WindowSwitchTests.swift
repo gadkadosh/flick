@@ -158,6 +158,18 @@ struct WindowSwitchTests {
         )
         #expect(escape.suppress)
         #expect(escape.command == .cancel)
+        for _ in 0..<3 {
+            let repeatTab = keys.key(
+                code: 48,
+                down: true,
+                option: true,
+                shift: false,
+                otherModifiers: false
+            )
+            #expect(repeatTab.suppress)
+            #expect(repeatTab.command == nil)
+        }
+        #expect(!keys.active)
         #expect(keys.modifiers(option: false, otherModifiers: false) == nil)
         #expect(
             keys.key(code: 53, down: false, option: false, shift: false, otherModifiers: false)
@@ -186,6 +198,7 @@ struct WindowSwitchTests {
         #expect(!typing.suppress)
         #expect(typing.command == .cancel)
         #expect(keys.modifiers(option: false, otherModifiers: false) == nil)
+        _ = keys.key(code: 48, down: false, option: false, shift: false, otherModifiers: false)
         _ = keys.key(code: 48, down: true, option: true, shift: false, otherModifiers: false)
         #expect(keys.modifiers(option: true, otherModifiers: true) == .cancel)
         #expect(keys.cancel() == nil)

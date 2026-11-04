@@ -123,6 +123,10 @@ public struct WindowSwitchKeys {
         if !down {
             return Result(suppress: swallowed.remove(code) != nil, command: nil)
         }
+        // A held key cannot start a new session after cancellation; wait for its key-up.
+        if !active && swallowed.contains(code) {
+            return Result(suppress: true, command: nil)
+        }
         if code == 48 && option && !otherModifiers {
             swallowed.insert(code)
             let command: Command = active ? .advance(backwards: shift) : .begin(backwards: shift)

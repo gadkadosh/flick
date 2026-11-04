@@ -45,13 +45,8 @@ enum WindowSwitchInventory {
                 && $0.processIdentifier != ProcessInfo.processInfo.processIdentifier
         }
         let pids = apps.map(\.processIdentifier)
-        let task = Task.detached(priority: .userInitiated) {
+        let discovery = try await offMain {
             try discover(pids: pids, frontPID: frontPID, displays: displays, fallbackID: activeID)
-        }
-        let discovery = try await withTaskCancellationHandler {
-            try await task.value
-        } onCancel: {
-            task.cancel()
         }
         try Task.checkCancellation()
         guard let screen = NSScreen.screens.first(where: { displayID($0) == discovery.display.id })
@@ -138,12 +133,12 @@ enum WindowSwitchInventory {
         let visiblePIDs = Set(visible.map { $0.pid })
         for pid in pids where visiblePIDs.contains(pid) {
             try Task.checkCancellation()
-            let application = AXUIElementCreateApplication(pid)
-            AXUIElementSetMessagingTimeout(application, 0.15)
-            guard let elements = attribute(application, kAXWindowsAttribute) as? [AXUIElement]
+            guard let application = bounded(AXUIElementCreateApplication(pid)),
+                let elements = attribute(application, kAXWindowsAttribute) as? [AXUIElement]
             else { continue }
             for element in elements {
                 try Task.checkCancellation()
+                guard let element = bounded(element) else { continue }
                 let id = FlickWindowID(element)
                 guard visibleIDs.contains(id), isOrdinary(element), let rect = frame(element),
                     let raw = FlickCopyWindowSpaces(id) as? [NSNumber]
@@ -173,66 +168,130 @@ enum WindowSwitchInventory {
         app: NSRunningApplication,
         display: WindowSwitchDisplay
     ) async throws {
-        try Task.checkCancellation()
-        guard AXIsProcessTrusted(), !IsSecureEventInputEnabled() else {
-            throw FlickError.message(
-                "Window switching is unavailable during Secure Keyboard Entry or without Accessibility permission."
-            )
-        }
         let layout = try displayLayout()
         let id = window.candidate.id.windowID
-        guard layout.contains(display), !app.isTerminated, !app.isHidden,
-            visibleWindows().contains(where: { $0.id == id && $0.pid == app.processIdentifier }),
-            FlickWindowID(window.element) == id, isOrdinary(window.element),
-            let rect = frame(window.element),
-            let spaces = FlickCopyWindowSpaces(id) as? [NSNumber],
-            WindowSwitchCandidate(
-                id: window.candidate.id,
-                frame: rect,
-                spaces: spaces.map(\.uint64Value)
-            )
-            .belongs(to: display, among: layout)
-        else {
-            throw FlickError.message(
-                "The selected window or display changed. No window switch was requested."
-            )
-        }
-        // Make this window the app's main window before activation, rather than activating all its windows.
-        _ = AXUIElementSetAttributeValue(
-            window.element,
-            kAXMainAttribute as CFString,
-            kCFBooleanTrue
-        )
-        guard AXUIElementPerformAction(window.element, kAXRaiseAction as CFString) == .success,
-            app.activate(options: [])
-        else {
-            throw FlickError.message("macOS could not activate the selected window.")
-        }
-        _ = AXUIElementPerformAction(window.element, kAXRaiseAction as CFString)
-        for _ in 0..<10 {
-            try Task.checkCancellation()
-            if NSWorkspace.shared.frontmostApplication?.processIdentifier == app.processIdentifier,
-                let focused = focusedWindow(app.processIdentifier), FlickWindowID(focused) == id
-            {
-                guard try displayLayout().contains(display) else {
+        let pid = app.processIdentifier
+        try await focus(
+            checkAvailability: {
+                guard AXIsProcessTrusted(), !IsSecureEventInputEnabled() else {
                     throw FlickError.message(
-                        "The visible Space or display changed during window activation."
+                        "Window switching is unavailable during Secure Keyboard Entry or without Accessibility permission."
                     )
                 }
+                guard !app.isTerminated, !app.isHidden, try displayLayout().contains(display) else {
+                    throw FlickError.message("The selected app, display, or visible Space changed.")
+                }
+            },
+            validate: {
+                guard visibleWindows().contains(where: { $0.id == id && $0.pid == pid }),
+                    FlickWindowID(window.element) == id, isOrdinary(window.element),
+                    let rect = frame(window.element),
+                    let spaces = FlickCopyWindowSpaces(id) as? [NSNumber],
+                    WindowSwitchCandidate(
+                        id: window.candidate.id,
+                        frame: rect,
+                        spaces: spaces.map(\.uint64Value)
+                    ).belongs(to: display, among: layout)
+                else {
+                    throw FlickError.message(
+                        "The selected window changed. No window switch was requested."
+                    )
+                }
+            },
+            prepare: {
+                // Set the specific main window before activation, without activating all windows.
+                _ = AXUIElementSetAttributeValue(
+                    window.element,
+                    kAXMainAttribute as CFString,
+                    kCFBooleanTrue
+                )
+                try Task.checkCancellation()
+                guard
+                    AXUIElementPerformAction(window.element, kAXRaiseAction as CFString) == .success
+                else {
+                    throw FlickError.message("macOS could not raise the selected window.")
+                }
+            },
+            activate: {
+                guard app.activate(options: []) else {
+                    throw FlickError.message("macOS could not activate the selected window.")
+                }
+            },
+            raise: { _ = AXUIElementPerformAction(window.element, kAXRaiseAction as CFString) },
+            isFocused: {
+                let focusedID = try await offMain { focusedWindowID(pid) }
+                return NSWorkspace.shared.frontmostApplication?.processIdentifier == pid
+                    && focusedID == id
+            }
+        )
+    }
+
+    nonisolated static func focusedWindow(_ pid: pid_t) -> AXUIElement? {
+        guard let app = bounded(AXUIElementCreateApplication(pid)),
+            let value = attribute(app, kAXFocusedWindowAttribute),
+            CFGetTypeID(value) == AXUIElementGetTypeID()
+        else { return nil }
+        return bounded(value as! AXUIElement)
+    }
+
+    nonisolated static func focusedWindowID(_ pid: pid_t) -> UInt32? {
+        focusedWindow(pid).map { FlickWindowID($0) }.flatMap { $0 == 0 ? nil : $0 }
+    }
+
+    // AX timeouts are object-specific; an application's timeout does not cover its windows.
+    nonisolated static func bounded(_ element: AXUIElement) -> AXUIElement? {
+        AXUIElementSetMessagingTimeout(element, 0.15) == .success ? element : nil
+    }
+
+    /// Keep all potentially blocking AX work away from the run loop servicing the keyboard tap.
+    nonisolated static func offMain<T: Sendable>(
+        _ operation: @escaping @Sendable () throws -> T
+    ) async throws -> T {
+        try Task.checkCancellation()
+        let task = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let result = try operation()
+            try Task.checkCancellation()
+            return result
+        }
+        return try await withTaskCancellationHandler {
+            let result = try await task.value
+            try Task.checkCancellation()
+            return result
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    /// Revalidate after slow reads and before sending focus requests.
+    static func focus(
+        checkAvailability: () throws -> Void,
+        validate: @escaping @Sendable () throws -> Void,
+        prepare: @escaping @Sendable () throws -> Void,
+        activate: () throws -> Void,
+        raise: @escaping @Sendable () throws -> Void,
+        isFocused: () async throws -> Bool
+    ) async throws {
+        try Task.checkCancellation()
+        try checkAvailability()
+        try await offMain(validate)
+        try checkAvailability()
+        try await offMain(prepare)
+        try Task.checkCancellation()
+        try checkAvailability()
+        try activate()
+        try await offMain(raise)
+        for _ in 0..<10 {
+            try Task.checkCancellation()
+            try checkAvailability()
+            if try await isFocused() {
+                try Task.checkCancellation()
+                try checkAvailability()
                 return
             }
             try await Task.sleep(for: .milliseconds(50))
         }
         throw FlickError.message("macOS did not confirm focus on the selected window.")
-    }
-
-    nonisolated static func focusedWindow(_ pid: pid_t) -> AXUIElement? {
-        let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, 0.15)
-        guard let value = attribute(app, kAXFocusedWindowAttribute),
-            CFGetTypeID(value) == AXUIElementGetTypeID()
-        else { return nil }
-        return (value as! AXUIElement)
     }
 
     nonisolated private static func attribute(_ element: AXUIElement, _ name: String) -> CFTypeRef?

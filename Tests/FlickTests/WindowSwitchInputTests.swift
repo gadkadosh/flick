@@ -43,6 +43,26 @@ struct WindowSwitchInputTests {
         #expect(!switcher.busy)
     }
 
+    @Test func heldTabCannotRestartAfterEscapeUntilItIsReleased() async {
+        let input = WindowSwitchInput(isSecureInputEnabled: { false })
+        var commands: [WindowSwitchKeys.Command] = []
+        input.onCommand = { commands.append($0) }
+        _ = input.receive(type: .keyDown, event: key(48, flags: .maskAlternate))
+        _ = input.receive(type: .keyDown, event: key(48, flags: .maskAlternate))
+        _ = input.receive(type: .keyDown, event: key(53, flags: .maskAlternate))
+        for _ in 0..<3 {
+            #expect(input.receive(type: .keyDown, event: key(48, flags: .maskAlternate)))
+        }
+        _ = input.receive(type: .flagsChanged, event: key(58))
+        await flushCommands()
+        #expect(commands == [.begin(backwards: false), .advance(backwards: false), .cancel])
+        #expect(input.receive(type: .keyUp, event: key(48)))
+        _ = input.receive(type: .keyDown, event: key(48, flags: .maskAlternate))
+        _ = input.receive(type: .flagsChanged, event: key(58))
+        await flushCommands()
+        #expect(commands.suffix(2) == [.begin(backwards: false), .commit])
+    }
+
     @Test func typingAfterQuickReleaseCancelsEvenBeforeQueuedCommandsAreDelivered() async {
         let input = WindowSwitchInput(isSecureInputEnabled: { false })
         var commands: [WindowSwitchKeys.Command] = []
