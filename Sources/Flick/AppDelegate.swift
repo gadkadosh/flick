@@ -212,18 +212,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             selected: ShortcutPreset.allCases.firstIndex(of: shortcuts.movePreset),
             action: #selector(changeMovePreset(_:))
         )
-        menu.addItem(.separator())
         let windows = add("Window Switcher (⌥Tab)", action: #selector(toggleWindowSwitching))
         windows.state = shortcuts.windowSwitchingEnabled ? .on : .off
-        if windowSwitchError != nil {
-            add("⚠ Window Switcher Unavailable…", action: #selector(showWindowSwitchError))
-        }
         menu.addItem(.separator())
         let login = add("Launch at Login", action: #selector(toggleLogin))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         if SMAppService.mainApp.status == .requiresApproval { login.title += " (approval needed)" }
 
-        menu.addItem(.separator())
         if !AXIsProcessTrusted() {
             add("Grant Accessibility…", action: #selector(grantAccessibility))
         }
@@ -236,6 +231,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if jumpRegistrationError != nil {
             add("⚠ Jump Shortcuts Unavailable…", action: #selector(showShortcutErrors))
         }
+        if windowSwitchError != nil {
+            add("⚠ Window Switcher Unavailable…", action: #selector(showWindowSwitchError))
+        }
+        menu.addItem(.separator())
         let help = NSMenu()
         help.autoenablesItems = false
         add("Last Result…", action: #selector(showLastResult), to: help)
