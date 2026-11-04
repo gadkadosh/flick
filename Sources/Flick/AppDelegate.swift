@@ -13,6 +13,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let jumpHotkeys: any HotKeyRegistering
     private let mover = WindowMover()
     private let switcher = SpaceSwitcher()
+    private let windowPanel = WindowSwitchPanel()
+    private var windowSwitcher: WindowSwitcher?
+    private var windowSwitchError: String?
     private var operationTask: Task<Void, Never>?
     private var lastResult = "Ready."
     private var moveRegistrationError: String?
@@ -45,25 +48,50 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
         menu.autoenablesItems = false
         menu.delegate = self
-        let smokeTest = CommandLine.arguments.contains("--smoke-test")
-        if !smokeTest {
-            moveHotkeys.onPress = { [weak self] index in
-                self?.perform(Direction.allCases[index], switching: false)
-            }
-            switchHotkeys.onPress = { [weak self] index in
-                self?.perform(Direction.allCases[index], switching: true)
-            }
-            jumpHotkeys.onPress = { [weak self] index in
-                self?.jumpToDesktop(index + 1)
-            }
+        moveHotkeys.onPress = { [weak self] index in
+            self?.perform(Direction.allCases[index], switching: false)
         }
+        switchHotkeys.onPress = { [weak self] index in
+            self?.perform(Direction.allCases[index], switching: true)
+        }
+        jumpHotkeys.onPress = { [weak self] index in
+            self?.jumpToDesktop(index + 1)
+        }
+        windowSwitcher = WindowSwitcher(
+            present: { [weak self] in self?.windowPanel.show($0, selected: $1) },
+            dismiss: { [weak self] in self?.windowPanel.hide() },
+            canBegin: { [weak self] in self?.operationTask == nil },
+            report: { [weak self] message in
+                self?.lastResult = message
+                self?.statusItem.button?.toolTip = message
+            }
+        )
+        configureWindowSwitcher()
         registerShortcuts()
         rebuildMenu()
-        if smokeTest {
-            print("Flick startup smoke test: menu created; Space actions disabled.")
-            print(menu.items.filter { !$0.isSeparatorItem }.map(\.title).joined(separator: "\n"))
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { NSApp.terminate(nil) }
+    }
+
+    private func configureWindowSwitcher() {
+        windowSwitchError = nil
+        guard let windowSwitcher else { return }
+        if !shortcuts.windowSwitchingEnabled {
+            windowSwitcher.stop()
+            return
         }
+        do { try windowSwitcher.start() } catch {
+            windowSwitcher.stop()
+            windowSwitchError = error.localizedDescription
+        }
+    }
+
+    @objc private func toggleWindowSwitching() {
+        shortcuts.windowSwitchingEnabled.toggle()
+        configureWindowSwitcher()
+        rebuildMenu()
+    }
+
+    @objc private func showWindowSwitchError() {
+        if let windowSwitchError { alert("Window switching", windowSwitchError) }
     }
 
     private func registerShortcuts() {
@@ -105,6 +133,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func perform(_ direction: Direction, switching: Bool) {
+        guard windowSwitcher?.busy != true else {
+            NSSound.beep()
+            return
+        }
         if operationTask != nil {
             let queued = switching ? switcher.enqueue(direction) : mover.enqueue(direction)
             if queued {
@@ -128,10 +160,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func jumpToDesktop(_ number: Int) {
-        guard operationTask == nil else {
+        guard operationTask == nil, windowSwitcher?.busy != true else {
             NSSound.beep()
             statusItem.button?.toolTip =
-                "Wait for the current Space operation before jumping to a desktop."
+                "Wait for the current operation before jumping to a desktop."
             return
         }
         startOperation { try await self.switcher.jumpToDesktop(number) }
@@ -180,12 +212,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             selected: ShortcutPreset.allCases.firstIndex(of: shortcuts.movePreset),
             action: #selector(changeMovePreset(_:))
         )
+        let windows = add("Window Switcher (⌥Tab)", action: #selector(toggleWindowSwitching))
+        windows.state = shortcuts.windowSwitchingEnabled ? .on : .off
         menu.addItem(.separator())
         let login = add("Launch at Login", action: #selector(toggleLogin))
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
         if SMAppService.mainApp.status == .requiresApproval { login.title += " (approval needed)" }
 
-        menu.addItem(.separator())
         if !AXIsProcessTrusted() {
             add("Grant Accessibility…", action: #selector(grantAccessibility))
         }
@@ -198,6 +231,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if jumpRegistrationError != nil {
             add("⚠ Jump Shortcuts Unavailable…", action: #selector(showShortcutErrors))
         }
+        if windowSwitchError != nil {
+            add("⚠ Window Switcher Unavailable…", action: #selector(showWindowSwitchError))
+        }
+        menu.addItem(.separator())
         let help = NSMenu()
         help.autoenablesItems = false
         add("Last Result…", action: #selector(showLastResult), to: help)
@@ -423,6 +460,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func quit() { NSApp.terminate(nil) }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        windowSwitcher?.stop()
         guard let operationTask else { return .terminateNow }
         operationTask.cancel()
         Task {
@@ -434,6 +472,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         spaceIndicator?.stop()
+        windowSwitcher?.stop()
         moveHotkeys.stop()
         switchHotkeys.stop()
         jumpHotkeys.stop()
@@ -443,6 +482,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 extension AppDelegate: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         if operationTask == nil { registerShortcuts() }
+        configureWindowSwitcher()
         rebuildMenu()
     }
 }

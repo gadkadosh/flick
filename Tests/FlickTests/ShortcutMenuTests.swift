@@ -37,6 +37,43 @@ struct ShortcutMenuTests {
         }
     }
 
+    @Test(arguments: [false, true])
+    func menuGroupsControlsSetupAndHelp(shortcutsFail: Bool) throws {
+        try withHarness { harness in
+            if shortcutsFail {
+                harness.move.rejectNextRegistration = true
+                harness.switching.rejectNextRegistration = true
+                harness.app.menuWillOpen(harness.app.rebuildMenu())
+            }
+            let menu = harness.app.rebuildMenu()
+            let groups = menu.items.split(whereSeparator: \.isSeparatorItem).map { $0.map(\.title) }
+            #expect(menu.items.filter(\.isSeparatorItem).count == 2)
+            try #require(groups.count == 3)
+            #expect(
+                groups[0] == [
+                    "Previous / Next Desktop\t⌥[ / ⌥]",
+                    "Go to Desktop\tOff",
+                    "Move Window\t⌥⇧[ / ⌥⇧]",
+                    "Window Switcher (⌥Tab)",
+                ]
+            )
+            #expect(groups[1].first?.hasPrefix("Launch at Login") == true)
+            #expect(
+                groups[1].dropFirst().allSatisfy {
+                    $0 == "Grant Accessibility…" || $0.hasPrefix("⚠ ")
+                }
+            )
+            #expect(
+                groups[1].filter { $0.hasPrefix("⚠ ") }
+                    == (shortcutsFail
+                        ? [
+                            "⚠ Switch Shortcuts Unavailable…", "⚠ Move Shortcuts Unavailable…",
+                        ] : [])
+            )
+            #expect(groups[2] == ["Help", "Quit Flick"])
+        }
+    }
+
     @Test func everyNumberedMenuChoiceRegistersAndPersistsTheIntendedPreset() throws {
         try withHarness { harness in
             harness.preferences.switchingEnabled = false
@@ -195,6 +232,25 @@ struct ShortcutMenuTests {
             )
             #expect(harness.alerts == ["Registration rejected by test."])
             try harness.expectSelection("⌃⌥⇧[ / ⌃⌥⇧]", in: "Move Window")
+        }
+    }
+
+    @Test func windowSwitcherMenuTogglesOnlyItsPersistedPreference() throws {
+        try withHarness { harness in
+            for enabled in [true, false, true] {
+                let item = try #require(
+                    harness.app.rebuildMenu().items.first { $0.title == "Window Switcher (⌥Tab)" }
+                )
+                #expect(item.state == (enabled ? .on : .off))
+                #expect(harness.reloaded.windowSwitchingEnabled == enabled)
+                let action = try #require(item.action)
+                _ = harness.app.perform(action)
+            }
+            #expect(harness.reloaded.movePreset == .optionBrackets)
+            #expect(harness.reloaded.switchingEnabled)
+            #expect(harness.move.attempts.isEmpty)
+            #expect(harness.switching.attempts.isEmpty)
+            #expect(harness.jump.attempts.isEmpty)
         }
     }
 
