@@ -58,7 +58,7 @@ make
 build/Flick.app/Contents/MacOS/Flick --diagnose
 ```
 
-Quit Flick before running diagnostics to avoid shortcut conflicts with the running app. Changes to Space operations also need manual testing; automated tests don’t exercise the private macOS APIs. See the [window-switcher verification checklist](docs/window-switcher-verification.md) for its required desktop and hardware checks.
+Quit Flick before running diagnostics to avoid shortcut conflicts with the running app. Changes to Space operations also need manual testing; automated tests don’t exercise the private macOS APIs.
 
 For bug reports, include your macOS version, affected app, display/Space setup, shortcut preset, and **Last Result…** message.
 
